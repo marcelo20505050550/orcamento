@@ -74,7 +74,7 @@ export default function ProdutosPage() {
     setExcluindo(true)
     try {
       console.log('Enviando requisição DELETE para', `/api/produtos/${produtoParaExcluir.id}`)
-      const response = await api.delete(`/api/produtos/${produtoParaExcluir.id}`)
+      await api.delete(`/api/produtos/${produtoParaExcluir.id}`)
       
       // Atualiza a lista de produtos removendo o produto excluído
       setProdutos(produtos.filter(p => p.id !== produtoParaExcluir.id))
@@ -395,7 +395,7 @@ export default function ProdutosPage() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Tem certeza que deseja excluir o produto "{produtoParaExcluir.nome}"? Esta ação não pode ser desfeita.
+                        Tem certeza que deseja excluir o produto &quot;{produtoParaExcluir.nome}&quot;? Esta ação não pode ser desfeita.
                       </p>
                     </div>
                   </div>

@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/supabase/auth'
 import Link from 'next/link'
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ user_metadata?: { nome?: string } } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

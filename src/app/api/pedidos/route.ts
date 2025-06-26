@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../middleware';
 import { logError, logInfo } from '@/utils/logger';
-import { Pedido, StatusPedido } from '@/types';
+import { StatusPedido } from '@/types';
 
 /**
  * GET /api/pedidos

@@ -16,21 +16,6 @@ interface PedidoInfo {
   user_id: string;
 }
 
-interface ProcessoPedidoData {
-  id: string;
-  pedido_id: string;
-  processo_id: string;
-  quantidade: number;
-  pedido: PedidoInfo;
-}
-
-interface ProcessoDetalhe {
-  processo_id: string;
-  processo: {
-    nome: string;
-  };
-}
-
 // Função auxiliar para verificar se o processo do pedido existe e pertence ao usuário
 async function verificarProcessoDoPedidoDoUsuario(id: string, userId: string) {
   console.log(`[DEBUG] Verificando processo ${id} para usuário ${userId}`);

@@ -53,11 +53,14 @@ export async function authMiddleware(req: NextRequest) {
   }
 }
 
+// Tipo para os handlers de rota
+type RouteHandler = (req: NextRequest, context?: { params?: Promise<Record<string, string>> }) => Promise<NextResponse>;
+
 // Middleware para lidar com erros em rotas da API
-export function errorHandlerMiddleware(handler: Function) {
-  return async (req: NextRequest, ...args: any[]) => {
+export function errorHandlerMiddleware(handler: RouteHandler) {
+  return async (req: NextRequest, context?: { params?: Promise<Record<string, string>> }) => {
     try {
-      return await handler(req, ...args);
+      return await handler(req, context);
     } catch (error) {
       logError('Erro não tratado na API', error);
       return NextResponse.json(
@@ -72,8 +75,8 @@ export function errorHandlerMiddleware(handler: Function) {
 }
 
 // Helper para proteger rotas que exigem autenticação
-export function withAuth(handler: Function) {
-  return async (req: NextRequest, context: any) => {
+export function withAuth(handler: RouteHandler) {
+  return async (req: NextRequest, context?: { params?: Promise<Record<string, string>> }) => {
     // Verifica autenticação
     const authResponse = await authMiddleware(req);
     if (authResponse) {

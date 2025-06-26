@@ -588,7 +588,7 @@ export default function ItensExtrasPage({ params }: { params: Promise<{ id: stri
                 Confirmar Exclusão
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                Tem certeza de que deseja excluir o item extra "{itemToDelete.nome}"? Esta ação não pode ser desfeita.
+                Tem certeza que deseja excluir o item extra &quot;{itemToDelete.nome}&quot;? Esta ação não pode ser desfeita.
               </p>
               <div className="flex justify-end space-x-3">
                 <button

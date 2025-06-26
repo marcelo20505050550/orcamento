@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import logger from '@/utils/logger'
+import { withAuth } from '@/utils/auth'
 
 // Função para validar dados de item extra
 function validarItemExtra(data: any) {
@@ -113,15 +114,15 @@ export async function GET(
 }
 
 // PUT - Atualizar um item extra
-export async function PUT(
-  request: NextRequest,
+export const PUT = withAuth(async (
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id: itemExtraId } = await params
     
     // Verificar autenticação
-    const authHeader = request.headers.get('authorization')
+    const authHeader = req.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Token de autenticação não fornecido' }, { status: 401 })
     }
@@ -141,7 +142,7 @@ export async function PUT(
     }
 
     // Validar dados da requisição
-    const body = await request.json()
+    const body = await req.json()
     const validatedData = validarItemExtra(body)
 
     // Verificar se há dados para atualizar
@@ -179,18 +180,18 @@ export async function PUT(
     logger.error('Erro interno ao atualizar item extra:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
-}
+})
 
 // DELETE - Excluir um item extra
-export async function DELETE(
-  request: NextRequest,
+export const DELETE = withAuth(async (
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id: itemExtraId } = await params
     
     // Verificar autenticação
-    const authHeader = request.headers.get('authorization')
+    const authHeader = req.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Token de autenticação não fornecido' }, { status: 401 })
     }
@@ -227,4 +228,4 @@ export async function DELETE(
     logger.error('Erro interno ao excluir item extra:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
-} 
+}) 

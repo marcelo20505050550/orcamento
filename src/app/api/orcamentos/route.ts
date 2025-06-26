@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../middleware';
 import { logError, logInfo } from '@/utils/logger';
-import { Orcamento } from '@/types';
 import { gerarOrcamentoCompleto } from '@/utils/calculadora';
 
 /**

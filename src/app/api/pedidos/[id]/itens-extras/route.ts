@@ -3,7 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import logger from '@/utils/logger'
 
 // Função para validar dados de item extra
-function validarItemExtra(data: any) {
+interface ItemExtraInput {
+  nome: string;
+  descricao?: string;
+  valor: number;
+}
+
+function validarItemExtra(data: ItemExtraInput) {
   const errors: string[] = []
   
   if (!data.nome || typeof data.nome !== 'string' || data.nome.trim().length === 0) {

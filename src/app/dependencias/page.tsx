@@ -74,7 +74,7 @@ export default function DependenciasPage() {
     setExcluindo(true)
     try {
       console.log('Enviando requisição DELETE para', `/api/dependencias/${dependenciaParaExcluir.id}`)
-      const response = await api.delete(`/api/dependencias/${dependenciaParaExcluir.id}`)
+      await api.delete(`/api/dependencias/${dependenciaParaExcluir.id}`)
       
       // Atualiza a lista de dependências removendo a dependência excluída
       setDependencias(dependencias.filter(d => d.id !== dependenciaParaExcluir.id))
@@ -352,7 +352,7 @@ export default function DependenciasPage() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Tem certeza que deseja excluir a dependência entre "{dependenciaParaExcluir.produto_pai.nome}" e "{dependenciaParaExcluir.produto_filho.nome}"? Esta ação não pode ser desfeita.
+                        Tem certeza que deseja excluir a dependência entre &quot;{dependenciaParaExcluir.produto_pai.nome}&quot; e &quot;{dependenciaParaExcluir.produto_filho.nome}&quot;? Esta ação não pode ser desfeita.
                       </p>
                     </div>
                   </div>

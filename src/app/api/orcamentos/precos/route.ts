@@ -72,116 +72,110 @@ export const PATCH = withAuth(async (req: NextRequest) => {
     
     // Atualiza preços de produtos
     if (body.produtos && body.produtos.length > 0) {
-      for (const produto of body.produtos) {
-        // Verifica se o ID e o preço são válidos
-        if (!produto.id || !validarPrecoPositivo(produto.preco_unitario)) {
-          resultados.produtos.erros++;
-          resultados.produtos.detalhes.push({
-            id: produto.id || 'ID inválido',
-            erro: 'ID ou preço unitário inválido'
-          });
-          continue;
-        }
-        
-        // Atualiza o preço no banco de dados
-        const { data, error } = await supabase
-          .from('produtos')
-          .update({ preco_unitario: produto.preco_unitario })
-          .eq('id', produto.id)
-          .select('id, nome')
-          .single();
+      const produtosSucesso = await Promise.allSettled(
+        body.produtos.map(async (produto: { id: string; preco_unitario: number }) => {
+          const { error } = await supabase
+            .from('produtos')
+            .update({ preco_unitario: produto.preco_unitario })
+            .eq('id', produto.id)
+            
+          if (error) throw error
           
-        if (error) {
-          resultados.produtos.erros++;
-          resultados.produtos.detalhes.push({
+          // Busca nome do produto para incluir na resposta
+          const { data } = await supabase
+            .from('produtos')
+            .select('nome')
+            .eq('id', produto.id)
+            .single()
+            
+          return {
             id: produto.id,
-            erro: error.message
-          });
-        } else {
-          resultados.produtos.sucesso++;
-          resultados.produtos.detalhes.push({
-            id: produto.id,
-            nome: data?.nome,
+            nome: data?.nome || 'N/A',
             preco_atualizado: produto.preco_unitario
-          });
+          }
+        })
+      )
+      
+      produtosSucesso.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          resultados.produtos.sucesso++
+          resultados.produtos.detalhes.push(result.value)
+        } else {
+          resultados.produtos.erros++
         }
-      }
+      })
     }
     
     // Atualiza preços de processos de fabricação
     if (body.processos && body.processos.length > 0) {
-      for (const processo of body.processos) {
-        // Verifica se o ID e o preço são válidos
-        if (!processo.id || !validarPrecoPositivo(processo.preco_por_unidade)) {
-          resultados.processos.erros++;
-          resultados.processos.detalhes.push({
-            id: processo.id || 'ID inválido',
-            erro: 'ID ou preço por unidade inválido'
-          });
-          continue;
-        }
-        
-        // Atualiza o preço no banco de dados
-        const { data, error } = await supabase
-          .from('processos_fabricacao')
-          .update({ preco_por_unidade: processo.preco_por_unidade })
-          .eq('id', processo.id)
-          .select('id, nome')
-          .single();
+      const processosSucesso = await Promise.allSettled(
+        body.processos.map(async (processo: { id: string; preco_por_unidade: number }) => {
+          const { error } = await supabase
+            .from('processos_fabricacao')
+            .update({ preco_por_unidade: processo.preco_por_unidade })
+            .eq('id', processo.id)
+            
+          if (error) throw error
           
-        if (error) {
-          resultados.processos.erros++;
-          resultados.processos.detalhes.push({
+          // Busca nome do processo para incluir na resposta
+          const { data } = await supabase
+            .from('processos_fabricacao')
+            .select('nome')
+            .eq('id', processo.id)
+            .single()
+            
+          return {
             id: processo.id,
-            erro: error.message
-          });
-        } else {
-          resultados.processos.sucesso++;
-          resultados.processos.detalhes.push({
-            id: processo.id,
-            nome: data?.nome,
+            nome: data?.nome || 'N/A',
             preco_atualizado: processo.preco_por_unidade
-          });
+          }
+        })
+      )
+      
+      processosSucesso.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          resultados.processos.sucesso++
+          resultados.processos.detalhes.push(result.value)
+        } else {
+          resultados.processos.erros++
         }
-      }
+      })
     }
     
     // Atualiza preços de tipos de mão de obra
     if (body.mao_de_obra && body.mao_de_obra.length > 0) {
-      for (const maoDeObra of body.mao_de_obra) {
-        // Verifica se o ID e o preço são válidos
-        if (!maoDeObra.id || !validarPrecoPositivo(maoDeObra.preco_por_hora)) {
-          resultados.mao_de_obra.erros++;
-          resultados.mao_de_obra.detalhes.push({
-            id: maoDeObra.id || 'ID inválido',
-            erro: 'ID ou preço por hora inválido'
-          });
-          continue;
-        }
-        
-        // Atualiza o preço no banco de dados
-        const { data, error } = await supabase
-          .from('mao_de_obra')
-          .update({ preco_por_hora: maoDeObra.preco_por_hora })
-          .eq('id', maoDeObra.id)
-          .select('id, tipo')
-          .single();
+      const maoDeObraSucesso = await Promise.allSettled(
+        body.mao_de_obra.map(async (mao: { id: string; preco_por_hora: number }) => {
+          const { error } = await supabase
+            .from('mao_de_obra')
+            .update({ preco_por_hora: mao.preco_por_hora })
+            .eq('id', mao.id)
+            
+          if (error) throw error
           
-        if (error) {
-          resultados.mao_de_obra.erros++;
-          resultados.mao_de_obra.detalhes.push({
-            id: maoDeObra.id,
-            erro: error.message
-          });
+          // Busca tipo de mão de obra para incluir na resposta
+          const { data } = await supabase
+            .from('mao_de_obra')
+            .select('tipo')
+            .eq('id', mao.id)
+            .single()
+            
+          return {
+            id: mao.id,
+            tipo: data?.tipo || 'N/A',
+            preco_atualizado: mao.preco_por_hora
+          }
+        })
+      )
+      
+      maoDeObraSucesso.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          resultados.mao_de_obra.sucesso++
+          resultados.mao_de_obra.detalhes.push(result.value)
         } else {
-          resultados.mao_de_obra.sucesso++;
-          resultados.mao_de_obra.detalhes.push({
-            id: maoDeObra.id,
-            tipo: data?.tipo,
-            preco_atualizado: maoDeObra.preco_por_hora
-          });
+          resultados.mao_de_obra.erros++
         }
-      }
+      })
     }
     
     // Calcula o total de atualizações com sucesso e erros

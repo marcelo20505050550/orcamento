@@ -9,6 +9,31 @@ import { withAuth } from '../../middleware';
 import { logError, logInfo } from '@/utils/logger';
 import { StatusPedido } from '@/types';
 
+interface ProcessoPedidoData {
+  id: string;
+  pedido_id: string;
+  processo_id: string;
+  quantidade: number;
+  processo: {
+    id: string;
+    nome: string;
+    preco_por_unidade: number;
+    tempo_estimado_minutos: number;
+  };
+}
+
+interface MaoDeObraPedidoData {
+  id: string;
+  pedido_id: string;
+  mao_de_obra_id: string;
+  horas: number;
+  mao_de_obra: {
+    id: string;
+    tipo: string;
+    preco_por_hora: number;
+  };
+}
+
 // Função auxiliar para verificar se o pedido existe e pertence ao usuário
 async function verificarPedidoDoUsuario(id: string, userId: string) {
   const { data, error } = await supabaseAdmin
@@ -170,7 +195,14 @@ export const PUT = withAuth(async (
     }
     
     // Prepara os dados para atualização
-    const updateData: any = {};
+    const updateData: Partial<{
+      status: StatusPedido;
+      observacoes: string;
+      tem_frete: boolean;
+      valor_frete: number;
+      margem_lucro_percentual: number;
+      impostos_percentual: number;
+    }> = {};
     
     // Atualização de status (se fornecido)
     if (body.status !== undefined) {

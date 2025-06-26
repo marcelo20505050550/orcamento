@@ -171,7 +171,7 @@ export default function ProcessosPedidoPage({ params }: { params: Promise<{ id: 
         throw new Error('A quantidade deve ser maior que zero')
       }
       
-      const response = await fetchApi<{ data: ProcessoPedido }>(`/api/pedidos/processos/${editingProcesso.id}`, {
+      await fetchApi<{ data: ProcessoPedido }>(`/api/pedidos/processos/${editingProcesso.id}`, {
         method: 'PUT',
         body: JSON.stringify({ quantidade: novaQuantidade })
       })

@@ -3,7 +3,6 @@
  * Endpoints para listar e criar dependências
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../middleware';
 import { logError, logInfo } from '@/utils/logger';
@@ -153,7 +152,7 @@ export const POST = withAuth(async (req: NextRequest) => {
     console.log(`Verificação de produtos: Pai (${produtoPai.nome}) e Filho (${produtoFilho.nome}) encontrados`);
     
     // Verifica se já existe uma dependência entre esses produtos
-    const { data: dependenciaExistente, error: errorVerificacao } = await supabaseAdmin
+    const { data: dependenciaExistente } = await supabaseAdmin
       .from('dependencias_produtos')
       .select('id')
       .eq('produto_pai_id', body.produto_pai_id)
@@ -171,7 +170,7 @@ export const POST = withAuth(async (req: NextRequest) => {
     // Isso requer uma consulta recursiva no banco de dados, que poderia ser implementada 
     // com uma stored procedure no PostgreSQL. Para simplificar, estamos apenas evitando 
     // ciclos diretos (A depende de B e B depende de A).
-    const { data: dependenciaCiclica, error: errorCiclo } = await supabaseAdmin
+    const { data: dependenciaCiclica } = await supabaseAdmin
       .from('dependencias_produtos')
       .select('id')
       .eq('produto_pai_id', body.produto_filho_id)

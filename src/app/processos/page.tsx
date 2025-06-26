@@ -66,7 +66,7 @@ export default function ProcessosPage() {
     try {
       setExcluindo(true)
       console.log('Enviando requisição DELETE para', `/api/processos/${processoParaExcluir.id}`)
-      const response = await api.delete(`/api/processos/${processoParaExcluir.id}`)
+      await api.delete(`/api/processos/${processoParaExcluir.id}`)
       
       // Atualiza a lista de processos removendo o processo excluído
       setProcessos(processos.filter(p => p.id !== processoParaExcluir.id))
@@ -352,7 +352,7 @@ export default function ProcessosPage() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Tem certeza que deseja excluir o processo "{processoParaExcluir.nome}"? Esta ação não pode ser desfeita.
+                        Tem certeza que deseja excluir o processo &quot;{processoParaExcluir.nome}&quot;? Esta ação não pode ser desfeita.
                       </p>
                     </div>
                   </div>

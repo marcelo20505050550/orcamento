@@ -188,8 +188,8 @@ export const POST = withAuth(async (
       );
     }
     
-    // Verifica se já existe este tipo de mão de obra associado ao pedido
-    const { data: maoDeObraExistenteNoPedido, error: errorVerificacao } = await supabaseAdmin
+    // Verifica se este tipo de mão de obra já está associado ao pedido
+    const { data: maoDeObraExistenteNoPedido } = await supabaseAdmin
       .from('mao_de_obra_pedidos')
       .select('id')
       .eq('pedido_id', id)

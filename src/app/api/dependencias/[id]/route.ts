@@ -3,7 +3,6 @@
  * Endpoints para obter detalhes, atualizar e remover uma dependência
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../../middleware';
 import { logError, logInfo } from '@/utils/logger';

@@ -88,7 +88,7 @@ export default function PedidosPage() {
     setExcluindo(true)
     try {
       console.log('Enviando requisição DELETE para', `/api/pedidos/${pedidoParaExcluir.id}`)
-      const response = await api.delete(`/api/pedidos/${pedidoParaExcluir.id}`)
+      await api.delete(`/api/pedidos/${pedidoParaExcluir.id}`)
       
       // Atualiza a lista de pedidos removendo o pedido excluído
       setPedidos(pedidos.filter(p => p.id !== pedidoParaExcluir.id))

@@ -66,7 +66,7 @@ export default function MaoDeObraPage() {
     setExcluindo(true)
     try {
       console.log('Enviando requisição DELETE para', `/api/mao-de-obra/${maoDeObraParaExcluir.id}`)
-      const response = await api.delete(`/api/mao-de-obra/${maoDeObraParaExcluir.id}`)
+      await api.delete(`/api/mao-de-obra/${maoDeObraParaExcluir.id}`)
       
       // Atualiza a lista de mãos de obra removendo a mão de obra excluída
       setMaosDeObra(maosDeObra.filter(m => m.id !== maoDeObraParaExcluir.id))
@@ -338,7 +338,7 @@ export default function MaoDeObraPage() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Tem certeza que deseja excluir o tipo de mão de obra "{maoDeObraParaExcluir.tipo}"? Esta ação não pode ser desfeita.
+                        Tem certeza que deseja excluir o tipo de mão de obra &quot;{maoDeObraParaExcluir.tipo}&quot;? Esta ação não pode ser desfeita.
                       </p>
                     </div>
                   </div>

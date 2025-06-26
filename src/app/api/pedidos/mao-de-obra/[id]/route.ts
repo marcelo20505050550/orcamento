@@ -217,6 +217,19 @@ export const DELETE = withAuth(async (
       .eq('id', id)
       .single();
     
+    // Obtém o nome do tipo de mão de obra de forma segura, considerando diferentes estruturas possíveis
+    let tipoMaoDeObra = 'desconhecido';
+    
+    if (maoDeObraDetalhes?.mao_de_obra) {
+      if (Array.isArray(maoDeObraDetalhes.mao_de_obra)) {
+        // Se for array, pega o primeiro elemento
+        tipoMaoDeObra = maoDeObraDetalhes.mao_de_obra[0]?.tipo || 'desconhecido';
+      } else if (typeof maoDeObraDetalhes.mao_de_obra === 'object') {
+        // Se for objeto direto
+        tipoMaoDeObra = (maoDeObraDetalhes.mao_de_obra as { tipo: string }).tipo || 'desconhecido';
+      }
+    }
+    
     // Remove a mão de obra do pedido
     const { error } = await supabase
       .from('mao_de_obra_pedidos')
@@ -232,7 +245,7 @@ export const DELETE = withAuth(async (
     }
     
     logInfo(`Mão de obra de pedido ${id} removida com sucesso`, {
-      tipo: (maoDeObraDetalhes?.mao_de_obra as any)?.tipo || 'desconhecido',
+      tipo: tipoMaoDeObra,
       pedido_id: maoDeObraDoPedido.pedido_id
     });
     

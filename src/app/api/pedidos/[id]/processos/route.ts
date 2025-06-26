@@ -188,8 +188,8 @@ export const POST = withAuth(async (
       );
     }
     
-    // Verifica se já existe este processo associado ao pedido
-    const { data: processoExistenteNoPedido, error: errorVerificacao } = await supabaseAdmin
+    // Verifica se este processo já está associado ao pedido
+    const { data: processoExistenteNoPedido } = await supabaseAdmin
       .from('processos_pedidos')
       .select('id')
       .eq('pedido_id', id)

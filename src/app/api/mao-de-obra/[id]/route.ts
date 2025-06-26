@@ -3,7 +3,6 @@
  * Endpoints para obter detalhes, atualizar e excluir um tipo de mão de obra
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../../middleware';
 import { logError, logInfo } from '@/utils/logger';
@@ -134,12 +133,12 @@ export const PUT = withAuth(async (
       );
     }
     
-    // Se o tipo foi fornecido, verifica se já existe outro tipo de mão de obra com o mesmo nome
+    // Verifica se já existe outro tipo com o mesmo nome (ignorando maiúsculas/minúsculas)
     if (body.tipo) {
-      const { data: tipoExistente, error: errorVerificacao } = await supabaseAdmin
+      const { data: tipoExistente } = await supabaseAdmin
         .from('mao_de_obra')
         .select('id')
-        .ilike('tipo', body.tipo)
+        .ilike('tipo', body.tipo.trim())
         .neq('id', id)
         .maybeSingle();
         

@@ -62,7 +62,38 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateOrcamentoHTML(orcamento: any): string {
+interface OrcamentoData {
+  informacoes_gerais: {
+    codigo_orcamento: string;
+    data_geracao: string;
+    data_validade: string;
+  };
+  cliente: {
+    nome: string;
+    email: string;
+  };
+  produto: {
+    nome: string;
+    descricao: string;
+    quantidade: number;
+  };
+  detalhamento: {
+    materiais: Array<{ nome: string; quantidade: number; preco_unitario: number; subtotal: number }>;
+    processos: Array<{ nome: string; quantidade: number; preco_por_unidade: number; subtotal: number }>;
+    mao_de_obra: Array<{ tipo: string; horas: number; preco_por_hora: number; subtotal: number }>;
+    itens_extras: Array<{ nome: string; descricao: string; valor: number }>;
+  };
+  resumo: {
+    custo_total_materiais: number;
+    custo_total_processos: number;
+    custo_total_mao_de_obra: number;
+    custo_total_itens_extras: number;
+    custo_total: number;
+  };
+  observacoes: string[];
+}
+
+function generateOrcamentoHTML(orcamento: OrcamentoData): string {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -336,7 +367,7 @@ function generateOrcamentoHTML(orcamento: any): string {
               </tr>
             </thead>
             <tbody>
-              ${orcamento.detalhamento.materiais.map((material: any) => `
+              ${orcamento.detalhamento.materiais.map((material) => `
                 <tr>
                   <td>${material.nome}</td>
                   <td class="text-right">${material.quantidade}</td>
@@ -363,7 +394,7 @@ function generateOrcamentoHTML(orcamento: any): string {
               </tr>
             </thead>
             <tbody>
-              ${orcamento.detalhamento.processos.map((processo: any) => `
+              ${orcamento.detalhamento.processos.map((processo) => `
                 <tr>
                   <td>${processo.nome}</td>
                   <td class="text-right">${processo.quantidade}</td>
@@ -390,7 +421,7 @@ function generateOrcamentoHTML(orcamento: any): string {
               </tr>
             </thead>
             <tbody>
-              ${orcamento.detalhamento.mao_de_obra.map((maoDeObra: any) => `
+              ${orcamento.detalhamento.mao_de_obra.map((maoDeObra) => `
                 <tr>
                   <td>${maoDeObra.tipo}</td>
                   <td class="text-right">${maoDeObra.horas}</td>
@@ -416,7 +447,7 @@ function generateOrcamentoHTML(orcamento: any): string {
               </tr>
             </thead>
             <tbody>
-              ${orcamento.detalhamento.itens_extras.map((item: any) => `
+              ${orcamento.detalhamento.itens_extras.map((item) => `
                 <tr>
                   <td>${item.nome}</td>
                   <td>${item.descricao}</td>

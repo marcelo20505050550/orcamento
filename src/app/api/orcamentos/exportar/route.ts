@@ -81,9 +81,9 @@ export const GET = withAuth(async (req: NextRequest) => {
     }
 
     // Busca as informações do produto separadamente
-    const { data: produto, error: produtoError } = await supabaseAdmin
+    const { data: produto } = await supabaseAdmin
       .from('produtos')
-      .select('id, nome, descricao, preco_unitario')
+      .select('id, nome, descricao, quantidade_estoque')
       .eq('id', pedidoSimples.produto_id)
       .single();
 

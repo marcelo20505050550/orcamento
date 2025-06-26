@@ -3,7 +3,6 @@
  * Endpoints para listar e cadastrar tipos de mão de obra
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../middleware';
 import { logError, logInfo } from '@/utils/logger';
@@ -93,11 +92,11 @@ export const POST = withAuth(async (req: NextRequest) => {
       );
     }
     
-    // Verifica se já existe um tipo de mão de obra com o mesmo nome
-    const { data: tipoExistente, error: errorVerificacao } = await supabaseAdmin
+    // Verifica se já existe um tipo de mão de obra com o mesmo nome (ignorando maiúsculas/minúsculas)
+    const { data: tipoExistente } = await supabaseAdmin
       .from('mao_de_obra')
       .select('id')
-      .ilike('tipo', body.tipo)
+      .ilike('tipo', body.tipo.trim())
       .maybeSingle();
       
     if (tipoExistente) {

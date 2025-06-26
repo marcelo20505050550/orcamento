@@ -165,7 +165,7 @@ export default function MaoDeObraPedidoPage({ params }: { params: Promise<{ id: 
         throw new Error('O número de horas deve ser maior que zero')
       }
       
-      const response = await fetchApi<{ data: MaoDeObraPedido }>(`/api/pedidos/mao-de-obra/${editingMaoDeObra.id}`, {
+      await fetchApi<{ data: MaoDeObraPedido }>(`/api/pedidos/mao-de-obra/${editingMaoDeObra.id}`, {
         method: 'PUT',
         body: JSON.stringify({ horas: novasHoras })
       })
