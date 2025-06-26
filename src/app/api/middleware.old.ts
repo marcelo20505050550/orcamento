@@ -1,40 +1,28 @@
-﻿/**
- * Middleware para proteção e autenticação de rotas da API - Versão corrigida para Vercel
+/**
+ * Middleware para proteção e autenticação de rotas da API
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
-// Função simplificada de logging para produção
-const logError = (message: string, error: any) => {
-  console.error(message, error instanceof Error ? error.message : error);
-};
+import { logError } from '@/utils/logger';
 
 // Função para verificar se o usuário está autenticado
 export async function authMiddleware(req: NextRequest) {
   try {
-    // Verifica variáveis de ambiente
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase environment variables');
-      return NextResponse.json(
-        { error: 'Configuração do servidor incompleta' },
-        { status: 500 }
-      );
-    }
-
-    // Cria um cliente Supabase para verificação do token
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
+    // Cria um cliente Supabase para verificação do token usando a service role key
+    // que tem permissões mais amplas para operações de autenticação
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
     // Obtém o token do cabeçalho de autorização
     const authHeader = req.headers.get('authorization');
-    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },
@@ -44,22 +32,12 @@ export async function authMiddleware(req: NextRequest) {
 
     // Extrai e verifica o token
     const token = authHeader.split(' ')[1];
-    
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Token de autenticação vazio' },
-        { status: 401 }
-      );
-    }
-
-    // Verifica o token com o Supabase
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data.user) {
+      console.error('Erro de autenticação:', error);
       return NextResponse.json(
-        { 
-          error: 'Token de autenticação inválido ou expirado'
-        },
+        { error: 'Token de autenticação inválido ou expirado' },
         { status: 401 }
       );
     }
@@ -69,9 +47,7 @@ export async function authMiddleware(req: NextRequest) {
   } catch (error) {
     logError('Erro no middleware de autenticação', error);
     return NextResponse.json(
-      { 
-        error: 'Erro ao processar autenticação'
-      },
+      { error: 'Erro ao processar autenticação' },
       { status: 500 }
     );
   }
@@ -108,6 +84,7 @@ export function withAuth(handler: RouteHandler) {
     }
     
     // Passa o contexto original (que contém params) para o handler
+    // Isso garante que o objeto params seja passado corretamente para rotas dinâmicas
     return errorHandlerMiddleware(handler)(req, context);
   };
-}
+} 
