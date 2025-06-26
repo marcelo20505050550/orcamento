@@ -1,0 +1,77 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Regras para desenvolvimento e manutenção da orçamentos
+globs: ["**/*"]
+alwaysApply: true
+---
+- Version: 1.0.0
+
+# Sistema de Orçamentos para Fabricação de Produtos Personalizados
+
+## Visão Geral do Produto
+
+* **Tipo:** Sistema de backend para gerenciamento de orçamentos
+* **Descrição:** Sistema para automatizar o processo de orçamentação para fabricação de produtos personalizados, calculando custos de matérias-primas, processos de fabricação e mão de obra.
+* **Componentes Principais:** API RESTful, Banco de dados Supabase, Autenticação
+* **Público-Alvo:** Administradores de fábricas e empresas de manufatura
+* **Meta Principal:** Automatizar e padronizar o processo de orçamentação
+
+## Estrutura do Projeto
+
+### Padrões de Roteamento (Next.js 15)
+* `/src/app/api/[recurso]/route.ts` para endpoints de API
+* Método correspondente (GET, POST, etc.) exportado como função
+
+### Diretórios Principais
+* `/src/app`: Rotas e páginas da aplicação
+* `/src/app/api`: Endpoints da API
+* `/src/components`: Componentes React reutilizáveis
+* `/src/hooks`: Custom hooks React
+* `/src/lib/supabase`: Configuração e integrações com o Supabase
+* `/src/types`: Definições de tipos TypeScript
+* `/src/utils`: Utilitários e funções auxiliares
+
+## Stack Tecnológica
+
+* **Frontend**: Next.js 14 com TypeScript e TailwindCSS
+* **Backend**: API Routes do Next.js
+* **Banco de Dados**: Supabase (PostgreSQL)
+* **Autenticação**: Supabase Auth
+* **Logging**: Winston
+
+### Padrões de Dados e API
+* Todos os endpoints de API devem validar dados de entrada
+* Respostas de erro padronizadas com código HTTP e mensagem
+* Autenticação via token JWT no cabeçalho Authorization
+
+### Tratamento de Estado e Data Fetching
+* Usar hooks personalizados para operações comuns do Supabase
+* Lidar com estados de loading e error em todas as operações assíncronas
+* Implementar cache quando apropriado para reduzir requisições
+
+## Preferências do Usuário
+* Interface em português brasileiro
+* Sistema de medidas métrico (SI)
+* Formato de moeda: R$ (Real brasileiro)
+* Formato de data: DD/MM/YYYY
+
+## Considerações de Privacidade e Segurança
+* Todas as senhas devem ser hasheadas (gerenciado pelo Supabase Auth)
+* Validação de dados em todos os endpoints
+* Proteção contra SQL injection via Supabase
+* Autenticação obrigatória para todas as operações sensíveis
+
+## Considerações de Escalabilidade
+* Otimização de consultas para grandes volumes de dados
+* Uso de cache para operações frequentes
+* Índices apropriados no banco de dados
+
+## Regras de Desenvolvimento
+* Seguir princípios SOLID
+* Preferir TypeScript sobre JavaScript
+* Comentários explicativos em código complexo
+* Logging apropriado para operações críticas

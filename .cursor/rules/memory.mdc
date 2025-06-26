@@ -1,0 +1,311 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Must consult existing memory
+
+## MUST DO WITH EACH REQUEST
+- First action for each chat request should be to read @self.mdc and @project.mdc
+- Last action for each chat should be to update @self.mdc, @project.mdc, @apis.mdc or @database-schema.mdc if needed.
+
+## Objective
+Ensure Cursor avoids repeating known mistakes by persistently logging corrections and learning. All requests must reference stored knowledge in:
+- `.cursor/rules/self.mdc` — for known mistakes and their fixes
+- `.cursor/rules/project.mdc` — for user preferences and custom rules
+- `.cursor/rules/database-schema.mdc` — for Supabase database schema and functions
+- `.cursor/rules/apis.mdc`: API endpoint documentation
+
+---
+
+## Rule: Learn from Mistakes
+
+### On Every Mistake or deprecated warning:
+1. **Detect** incorrect or suboptimal outputs.
+2. **Correct** the mistake.
+3. **Save** both mistake and correction in @self.mdc using the format:
+
+   ```markdown
+   ### Mistake: [Short Description]
+   **Wrong**:
+   ```
+   [Insert incorrect code or logic]
+   ```
+
+   **Correct**:
+   ```
+   [Insert corrected code or logic]
+   ```
+   ```
+
+---
+
+## Rule: Respect and Reference Project Preferences
+### On Every Request:
+1. **Read** @project.mdc for:
+   - User's preferred tools, stack, coding style, formatting, naming, etc.
+   - Preferences like TypeScript over JS, Yarn over npm, etc.
+2. **Apply** these preferences without exception.
+3. **Save** any new user preferences in @project.mdc.
+
+---
+
+## Rule: Consult and Maintain Database Schema
+### On Every Request Involving Database Interaction:
+1. **Read** `@backend/database-schema.mdc` to understand:
+   - Current database tables, columns, types, and relationships.
+   - Constraints, indexes, and RLS policies if documented.
+2. **Apply** this schema knowledge when generating SQL queries, database migrations, or backend code interacting with the database.
+3. **Update** `@backend/database-schema.mdc` if database schema modifications are made during the development process, ensuring it reflects the latest state (reinforces existing update rule).
+
+---
+
+## Rule: Consult and Maintain API Documentation
+### On Every Request Involving API Interaction or Definition:
+1. **Read** `@apis.mdc` to understand:
+   - Existing API endpoints, their purpose, request/response formats, and authentication requirements.
+2. **Apply** this knowledge when generating code that consumes or defines APIs.
+3. **Update** `@apis.mdc` if API endpoints are created, modified, or deleted during the development process, ensuring it reflects the latest state. Document the endpoint path, HTTP method, purpose, expected request body/params, and response structure.
+
+---
+
+## Rule: Prevent Repetition
+### On Every Request:
+- Always **read @self.mdc** before applying logic.
+- If a related mistake is found:
+  - **Use** the corrected approach instead.
+  - **Log** that a prior fix was applied (optional debug).
+
+---
+
+## Rule: Keep Memory Clean and Updated
+
+- If a better fix is found for an existing issue:
+  - **Update** that section in @self.mdc.
+- Structure the memory files with clear `###` headers.
+- Group by topic if needed.
+- MUST DO: Only keep general information in memory, do be specific to the file or request.
+- MUST DO: Information saved in memory should be useful and reusable.
+
+---
+
+## Storage Paths
+- `.cursor/rules/self.mdc`: Persistent log of mistakes and their fixes
+- `.cursor/rules/project.mdc`: User preferences and custom rules
+- `.cursor/rules/database-schema.mdc`: Supabase database schema and functions
+- `.cursor/rules/apis.mdc`: API endpoint documentation
+
+---
+
+## Enforcement
+- Failing to read or update memory files after a mistake is a **critical error**.
+- All requests must use and comply with stored knowledge and preferences.
+
+# Self-Correction Memory
+
+This file logs mistakes made by the AI and their corrections to prevent repetition and improve performance over time.
+
+## Correções e Melhorias
+
+### Correção: Uso incorreto de supabase vs supabaseAdmin nas APIs
+
+**Problema:**
+Em várias rotas de API, estava sendo usado o cliente `supabase` normal em vez de `supabaseAdmin` para operações no banco de dados. O cliente `supabase` está sujeito às políticas RLS (Row Level Security), enquanto o `supabaseAdmin` tem acesso completo ao banco de dados.
+
+**Solução:**
+Substituição de todas as instâncias de `supabase` por `supabaseAdmin` nas rotas de API que realizam operações no banco de dados, especialmente nas funções auxiliares como `produtoExists` e `processoExists`.
+
+### Implementação: Funcionalidade de exclusão de produtos e processos
+
+**Problema:**
+A funcionalidade de exclusão de produtos e processos não estava completamente implementada. Faltava o código para chamar a API corretamente e tratar os resultados.
+
+**Solução:**
+1. Implementação da função `excluirProcesso` na página de processos para chamar a API e tratar os resultados.
+2. Correção da função `excluirProduto` na página de produtos para chamar a API com o caminho correto (`/api/produtos/[id]`).
+3. Adição de verificações de dependências antes de excluir produtos para evitar violações de integridade referencial.
+4. Implementação de feedback visual para o usuário com mensagens de sucesso ou erro.
+
+### Correção: Erros de hidratação no Next.js
+
+**Problema:**
+Erros de hidratação causados por diferenças entre o HTML renderizado no servidor e no cliente.
+
+**Solução:**
+1. Adição do atributo `suppressHydrationWarning` ao elemento `body` no arquivo `src/app/layout.tsx`.
+2. Correção do uso incorreto do hook `use` com Promise em componentes cliente, substituindo por `useEffect` e `useState`.
+
+### Correção: Erro na edição de processos
+
+**Problema:**
+Na página de edição de processos, ocorria o erro "Cannot read properties of undefined (reading 'nome')" porque o código estava tentando acessar `response.data.data.nome`, mas a estrutura da resposta era diferente.
+
+**Solução:**
+Correção do acesso aos dados da resposta da API, alterando de `response.data.data` para `response.data`, garantindo que os dados do processo sejam acessados corretamente.
+
+### Correção: Modal de confirmação para exclusão de processos
+
+**Problema:**
+A exclusão de processos estava sendo feita diretamente ao clicar no botão "Excluir", usando `confirm()` nativo do navegador, o que não era consistente com o padrão usado na exclusão de produtos e causava problemas de interação.
+
+**Solução:**
+1. Implementação de um modal de confirmação personalizado para exclusão de processos, similar ao usado na página de produtos.
+2. Adição de estados para gerenciar o processo sendo excluído e o estado de carregamento.
+3. Melhoria na experiência do usuário com feedback visual durante a exclusão.
+4. Aumento do z-index do modal para garantir que ele fique acima de outros elementos da página.
+
+### Correção: Erro na edição de produtos e mão de obra
+
+**Problema:**
+Nas páginas de edição de produtos e mão de obra, ocorria o mesmo erro de acesso aos dados da resposta da API que foi identificado na página de edição de processos. Além disso, havia avisos de hidratação devido a diferenças entre o HTML renderizado no servidor e no cliente.
+
+**Solução:**
+1. Correção do acesso aos dados da resposta da API, alterando de `response.data.data` para `response.data` nos arquivos:
+   - `src/app/produtos/[id]/editar/page.tsx`
+   - `src/app/mao-de-obra/[id]/editar/page.tsx`
+2. Adição do atributo `suppressHydrationWarning` aos componentes principais para evitar avisos de hidratação.
+
+### Correção: Erro na página de detalhes de pedidos
+
+**Problema:**
+Na página de detalhes de pedidos, ocorria o mesmo erro de acesso aos dados da resposta da API que foi identificado nas outras páginas. O código estava tentando acessar `response.data.data` e `response.data.data.status`, mas a estrutura da resposta era diferente.
+
+**Solução:**
+1. Correção do acesso aos dados da resposta da API, alterando de `response.data.data` para `response.data` no arquivo `src/app/pedidos/[id]/page.tsx`.
+2. Correção do acesso aos dados ao atualizar o status do pedido, alterando de `response.data.data.status` para `response.data.status`.
+3. Adição do atributo `suppressHydrationWarning` ao componente principal para evitar avisos de hidratação.
+
+### Correção: Interpretação incorreta do campo preco_por_unidade em processos
+
+**Problema:**
+Nos componentes relacionados a processos de fabricação, o campo `preco_por_unidade` estava sendo exibido e tratado como "Preço por Unidade", quando na verdade deveria representar o "Preço por Hora" de acordo com o requisito do sistema.
+
+**Solução:**
+1. Atualização dos rótulos e descrições nos formulários de criação e edição de processos para refletir "Preço por Hora" em vez de "Preço por Unidade".
+2. Atualização do cabeçalho da tabela na listagem de processos para exibir "Preço por Hora".
+3. Atualização das mensagens de validação na API para referenciar "Preço por hora" em vez de "Preço por unidade".
+4. Atualização da documentação da API no arquivo .cursor/rules/apis.mdc para refletir a correta interpretação do campo.
+5. Manutenção do nome do campo no banco de dados como `preco_por_unidade` para evitar migrações de schema desnecessárias, apenas alterando sua interpretação na interface.
+6. Correção adicional em outras páginas que exibem processos:
+   - Em `src/app/pedidos/[id]/processos/page.tsx`: Alteração do texto "Preço por Unidade" para "Preço por Hora" no cabeçalho da tabela e no seletor de processos (exibindo `/hora` em vez de `/unidade`).
+   - Em `src/app/orcamentos/page.tsx`: Alteração do texto "Preço por Unidade" para "Preço por Hora" no cabeçalho da tabela de processos.
+
+### Correção: Exibição do tempo estimado em processos como horas em vez de minutos
+
+**Problema:**
+Nas páginas relacionadas a processos de fabricação, o campo `tempo_estimado_minutos` estava sendo exibido como "Tempo Estimado (minutos)", mas deveria ser exibido como "Tempo Estimado (horas)" para manter consistência com o campo "Preço por Hora". Além disso, o tempo estava sendo formatado para exibir horas e minutos, quando deveria ser convertido para horas decimais.
+
+**Solução:**
+1. Atualização dos rótulos nos formulários de criação e edição de processos:
+   - Alteração de "Tempo Estimado (minutos)" para "Tempo Estimado (horas)"
+   - Atualização do texto explicativo de "Tempo estimado em minutos por unidade" para "Tempo estimado em horas por unidade"
+2. Atualização dos cabeçalhos de tabela em todas as páginas que exibem processos:
+   - Em `src/app/processos/page.tsx`: Alteração de "Tempo Estimado" para "Tempo Estimado (horas)"
+   - Em `src/app/pedidos/[id]/processos/page.tsx`: Alteração de "Tempo por Unidade" para "Tempo Estimado (horas)"
+   - Em `src/app/orcamentos/page.tsx`: Alteração de "Tempo Estimado" para "Tempo Estimado (horas)"
+3. Modificação das funções `formatTime` em todas as páginas para converter minutos em horas decimais:
+   ```javascript
+   const formatTime = (minutes: number) => {
+     const hours = minutes / 60;
+     return hours.toFixed(2); // Exibe com duas casas decimais
+   }
+   ```
+4. Mantido o nome do campo no banco de dados como `tempo_estimado_minutos` para evitar migrações de schema desnecessárias, apenas alterando sua interpretação na interface.
+
+### Correção: Uso síncrono do objeto params nas rotas dinâmicas do Next.js
+
+**Problema:**
+Em rotas de API dinâmicas do Next.js, o objeto `params` estava sendo usado de forma síncrona (via desestruturação `const { id } = params`), causando o erro: "Route used `params.id`. `params` should be awaited before using its properties." Este erro ocorre porque no Next.js 15, os parâmetros de rota dinâmica devem ser tratados como assíncronos.
+
+**Causa:**
+O Next.js 15 alterou a forma como os parâmetros de rota são gerenciados, exigindo que o objeto `params` seja aguardado com `await` antes de usar suas propriedades. Isso faz parte das otimizações de roteamento do Next.js 15 para melhorar o desempenho e permitir carregamento parcial e incremental de dados.
+
+**Solução:**
+1. Modificação do acesso ao parâmetro dinâmico `id` nas rotas para usar a abordagem assíncrona correta:
+   ```typescript
+   // Antes (incorreto)
+   const { id } = params;
+   
+   // Depois (correto - solução final conforme documentação)
+   const { id } = await params;
+   ```
+2. Adição de comentários explicativos para indicar a necessidade de aguardar os parâmetros de forma assíncrona.
+3. Atualização de todos os métodos (GET, PUT, DELETE, POST) nos arquivos de rota dinâmica para usar a abordagem assíncrona correta.
+4. Modificação de todas as rotas dinâmicas afetadas, incluindo:
+   - `src/app/api/processos/[id]/route.ts`
+   - `src/app/api/mao-de-obra/[id]/route.ts`
+   - `src/app/api/produtos/[id]/route.ts`
+   - `src/app/api/pedidos/[id]/route.ts`
+   - `src/app/api/dependencias/[id]/route.ts`
+   - `src/app/api/pedidos/[id]/processos/route.ts`
+   - `src/app/api/pedidos/[id]/mao-de-obra/route.ts`
+   - `src/app/api/pedidos/processos/[id]/route.ts`
+   - `src/app/api/pedidos/mao-de-obra/[id]/route.ts`
+   - `src/app/api/produtos/[id]/dependencias/route.ts`
+5. Também corrigimos a utilização do supabaseAdmin em vez do supabase nas operações de banco de dados nessas rotas, para garantir que as operações não estejam sujeitas às políticas RLS (Row Level Security).
+6. Correção de erros de tipo nas consultas ao Supabase, especialmente relacionados ao acesso de propriedades em arrays retornados pelas consultas.
+7. Seguindo a documentação oficial do Next.js 15: https://nextjs.org/docs/messages/sync-dynamic-apis
+
+**Impacto:**
+Estas correções eliminam os erros "params should be awaited" que impediam o funcionamento adequado das rotas dinâmicas e causavam falhas 404 em várias áreas da aplicação. A aplicação agora funciona corretamente com o Next.js 15, mantendo compatibilidade com suas otimizações de roteamento e carregamento de dados.
+
+### Correção: Erros de hidratação causados por extensões de navegador
+
+**Problema:**
+Ocorreram erros de hidratação com a mensagem "Hydration failed because the server rendered HTML didn't match the client". O problema era causado por atributos `bis_skin_checked` que estavam sendo adicionados por extensões de navegador (como Bitdefender) aos elementos div na renderização do cliente, mas não existiam na renderização do servidor.
+
+**Causa:**
+Extensões de navegador relacionadas à segurança, como o Bitdefender, adicionam atributos personalizados (como `bis_skin_checked`) aos elementos DOM para rastrear e analisar o conteúdo da página. Isso causa diferenças entre o HTML renderizado no servidor e o HTML no cliente após a intervenção dessas extensões, resultando em erros de hidratação do React.
+
+**Solução:**
+1. Criação de um componente `HydrationErrorBoundary` que captura e suprime erros de hidratação:
+   ```typescript
+   class HydrationErrorBoundary extends Component<Props, State> {
+     // ... implementação que captura erros de hidratação ...
+   }
+   ```
+   
+2. Integração do `HydrationErrorBoundary` no componente `Providers` para envolver toda a aplicação:
+   ```typescript
+   <ThemeContext.Provider value={{ theme, toggleTheme }}>
+     <HydrationErrorBoundary>
+       {children}
+     </HydrationErrorBoundary>
+   </ThemeContext.Provider>
+   ```
+
+3. Adição do atributo `suppressHydrationWarning` a elementos div críticos no layout principal:
+   ```tsx
+   <div className="min-h-screen flex flex-col bg-background" suppressHydrationWarning>
+     {/* ... */}
+   </div>
+   ```
+
+4. Criação de componentes wrapper (`HydrationSuppressor`, `FlexHydrationSuppressor`, `SpaceYHydrationSuppressor`) para facilitar a aplicação do atributo `suppressHydrationWarning` em diferentes tipos de contêineres.
+
+**Impacto:**
+Esta solução permite que a aplicação funcione corretamente mesmo quando extensões de navegador adicionam atributos personalizados aos elementos DOM. Os erros de hidratação são capturados e suprimidos, evitando que a interface do usuário seja afetada negativamente ou que o console seja preenchido com mensagens de erro.
+
+### Correção: Conversão entre horas e minutos nos processos de fabricação
+
+**Problema:**
+Após alterar a interface para exibir o tempo estimado em horas, os valores inseridos pelo usuário não estavam sendo convertidos corretamente. Quando o usuário inseria "44" horas, o sistema exibia "0.73" porque o valor estava sendo armazenado como minutos no banco de dados (44 minutos = 0.73 horas), mas a interface esperava horas.
+
+### Melhoria: Fluxo de criação de pedidos com adição de processos e mão de obra
+
+**Problema:**
+Na criação de pedidos, os usuários precisavam criar o pedido e depois navegar manualmente para adicionar processos de fabricação e mão de obra, sem um fluxo claro e direto para completar todas as etapas necessárias para um orçamento.
+
+**Solução:**
+1. Modificação da página de criação de pedidos para redirecionar o usuário para a página de detalhes do pedido recém-criado em vez da lista de pedidos.
+2. Adição de parâmetro `novo=true` na URL para identificar pedidos recém-criados.
+3. Implementação de uma mensagem de boas-vindas na página de detalhes do pedido quando o parâmetro `novo=true` está presente.
+4. Adição de links diretos na mensagem de boas-vindas para facilitar a adição de processos e mão de obra.
+5. Inclusão de uma nota explicativa na página de criação de pedido informando ao usuário que ele poderá adicionar processos e mão de obra após a criação do pedido.
+6. Melhoria na usabilidade dos botões na interface para tornar mais claras as ações disponíveis.
+
+**Solução:**
+1. Modificação dos formulários de criação e edição para converter corretamente entre horas e minutos:
+   - Ao carregar dados do processo para edição, converter o valor de `tempo_estimado_minutos` do banco de dados (em minutos) para horas dividindo por 60
+   - Ao enviar dados para a API (tanto na criação quanto na edição), converter o valor inserido pelo usuário (em horas) para minutos multiplicando por 60
+2. Mantida a estrutura do banco de dados com o campo `tempo_estimado_minutos` para evitar migrações de schema, apenas ajustando a conversão na interface.

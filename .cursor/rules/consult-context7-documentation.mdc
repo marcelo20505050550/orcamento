@@ -1,0 +1,47 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Consult Context7 Documentation - Version: 1.0.0
+
+## Purpose & Scope
+
+Esta regra determina que o assistente IA DEVE sempre tentar consultar a ferramenta `mcpcontext7` (conforme definido em `.cursor/mcp.json`) para recuperar documentação relevante antes de realizar qualquer tarefa relacionada ao projeto. Isso inclui, mas não se limita a, codificação, decisões arquitetônicas, refatoração e implementação de recursos. O objetivo principal é garantir que todas as ações sejam baseadas no conhecimento e diretrizes específicas do projeto mais recentes armazenadas em `mcpcontext7`.
+
+## Implementation Guidelines
+
+-   **Mandatory First Step:** Antes de iniciar qualquer codificação, modificação, planejamento ou processo significativo de tomada de decisão relacionado ao projeto, a IA DEVE primeiro formular uma consulta para pesquisar `mcpcontext7` por documentação relevante.
+-   **Task-Specific Queries:** Consultas a `mcpcontext7` DEVEM ser específicas e relevantes para a tarefa em questão. Por exemplo, se solicitado a implementar autenticação de usuário, a IA deve consultar `mcpcontext7` para "documentação do módulo de autenticação de usuário" ou "diretrizes de segurança para autenticação".
+-   **Utilization of Retrieved Information:**
+    -   Se documentação relevante for encontrada dentro de `mcpcontext7`, seu conteúdo DEVE ser considerado autoritativo e priorizado na abordagem da IA para a tarefa.
+    -   Se `mcpcontext7` não retornar documentação relevante para a consulta específica, ou se a informação for claramente insuficiente para a tarefa, a IA PODE então proceder para consultar outras fontes documentadas conforme delineado em regras como `@software-development-best-practices.mdc` (por exemplo, arquivos do projeto, pesquisas na web), após observar que `mcpcontext7` foi consultado primeiro.
+-   **Assumption of Tool Capability:** Esta regra opera sob a suposição de que a IA possui os mecanismos ou integrações necessários para efetivamente consultar e recuperar informações da ferramenta `mcpcontext7`.
+-   **Logging Consultation:** Para rastreabilidade, a IA DEVE brevemente notar em seu processo de pensamento ou logs que `mcpcontext7` foi consultado, e se informações relevantes foram encontradas.
+
+### Examples
+
+Esta regra é orientada a processos, então os exemplos ilustram o fluxo:
+
+*   **✅ FAZER:**
+    1.  Solicitação do Usuário: "Desenvolver um novo endpoint de API para gerenciar pedidos de clientes."
+    2.  Primeiro Passo Interno da IA: Consultar `mcpcontext7` para "diretrizes de design de API para gerenciamento de pedidos" E "esquema para pedidos de clientes".
+    3.  A IA prossegue com o desenvolvimento baseado em informações recuperadas de `mcpcontext7`, ou observa se nenhuma documentação específica foi encontrada.
+
+*   **❌ NÃO FAZER:**
+    1.  Solicitação do Usuário: "Refatorar o componente `UserProfile`."
+    2.  A IA imediatamente começa a analisar e mudar o código do componente `UserProfile` sem primeiro consultar `mcpcontext7` para "diretrizes do componente UserProfile", "notas de refatoração para componentes de UI", ou "problemas conhecidos com UserProfile".
+
+## Related Rules
+
+-   `@memory.mdc` (para consulta geral de memória e regras)
+-   `@software-development-best-practices.mdc` (especialmente para "Execução Cuidadosa" e métodos de pesquisa alternativos se `mcpcontext7` não produzir resultados)
+-   `@project.mdc` (para diretrizes gerais do projeto que `mcpcontext7` pode elaborar)
+
+## Suggested Metadata
+---
+description: Mandates that the AI must always consult the mcpcontext7 tool for project-specific documentation before undertaking any development or project-related tasks.
+globs: ["**/*"] # This rule applies to all tasks and files as it dictates a preliminary research step.
+alwaysApply: true # This consultation is a fundamental step for all project activities.
+---
+

@@ -1,0 +1,100 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Modern UI/UX Design Principles - Version: 1.0.0
+
+## Purpose & Scope
+
+Este documento estabelece diretrizes para criar interfaces de usuário modernas, envolventes e visualmente atraentes. Ele enfatiza espaçamento profissional, animações sutis e estética de design contemporânea para garantir uma experiência de usuário de alta qualidade.
+
+## Diretrizes de Implementação
+
+-   **Hierarquia Visual:** DEVE estabelecer uma hierarquia visual clara usando tamanho, cor, contraste e espaçamento para guiar a atenção do usuário para elementos importantes.
+-   **Minimalismo & Clareza:** DEVE adotar uma abordagem minimalista, focando em elementos essenciais e evitando poluição visual. Garantir que cada elemento sirva a um propósito claro.
+-   **Espaçamento Consistente:** DEVE usar um sistema de espaçamento consistente (ex: múltiplos de 4px ou 8px) para margens, paddings e grids de layout para garantir harmonia visual e previsibilidade.
+-   **Design Responsivo:** Todos os elementos e layouts de UI DEVEM ser totalmente responsivos, adaptando-se perfeitamente a vários tamanhos de tela e dispositivos (desktops, tablets, celulares).
+-   **Feedback Interativo:** DEVE fornecer feedback visual imediato e claro para interações do usuário (ex: estados de hover, efeitos de clique, indicadores de carregamento).
+-   **Animações & Transições Sutis:** DEVE incorporar animações e transições sutis e propositais para melhorar a experiência do usuário, fornecer feedback e guiar a navegação. Animações DEVEM ser suaves e performáticas, EVITAR animações excessivamente complexas ou distrativas.
+-   **Acessibilidade (A11Y):** DEVE garantir que os designs sejam acessíveis a usuários com deficiências, seguindo os padrões WCAG (Web Content Accessibility Guidelines). Isso inclui contraste de cor suficiente, navegação por teclado e atributos ARIA quando necessário.
+-   **Tipografia Moderna:** DEVE usar fontes limpas, legíveis e modernas. Garantir uma hierarquia tipográfica clara para títulos, subtítulos e texto do corpo.
+-   **Imagens & Ícones de Alta Qualidade:** DEVE usar imagens de alta resolução e ícones vetoriais escaláveis que se alinhem com a estética moderna geral.
+-   **Consistência da Marca:** DEVE manter consistência com a identidade da marca do projeto (cores, tipografia, uso do logotipo).
+-   **Abordagem Centrada no Usuário:** Sempre projetar com o usuário em mente. Conduzir pesquisa de usuário e testes de usabilidade quando possível para validar escolhas de design.
+-   **Performance:** As escolhas de design NÃO DEVEM impactar negativamente o desempenho da aplicação. Otimizar imagens e assets, e estar ciente do custo de desempenho de animações complexas ou efeitos visuais.
+
+### Exemplos
+
+  ```css
+  /* ✅ FAZER: Espaçamento consistente e hierarquia visual clara */
+  .card {
+    padding: 16px; /* Múltiplo de 8px */
+    margin-bottom: 24px; /* Múltiplo de 8px */
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+  }
+
+  .card-title {
+    font-size: 1.5rem; /* 24px */
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .card-content {
+    font-size: 1rem; /* 16px */
+    line-height: 1.6;
+  }
+
+  .button-primary {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease; /* Transição sutil */
+  }
+
+  .button-primary:hover {
+    background-color: #0056b3;
+  }
+
+  /* ❌ NÃO FAZER: Espaçamento inconsistente, design poluído, animações chamativas demais */
+  .old-card {
+    padding: 13px; /* Inconsistente */
+    margin-bottom: 17px; /* Inconsistente */
+    border: 1px solid #ccc;
+    /* Sem sombra clara ou profundidade */
+  }
+
+  .old-button {
+    background-color: red;
+    color: yellow; /* Contraste ruim */
+    font-size: 10px; /* Muito pequeno */
+    animation: flash 0.5s infinite; /* Animação distrativa */
+  }
+
+  @keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+  ```
+
+### Restrições
+-   NUNCA usar tags HTML obsoletas ou técnicas CSS desatualizadas.
+-   EVITAR usar imagens raster para ícones; preferir SVGs.
+-   NUNCA sacrificar usabilidade ou acessibilidade por razões puramente estéticas.
+-   EVITAR usar mais de 2-3 fontes primárias em toda a aplicação.
+
+## Convenções
+-   Seguir uma abordagem mobile-first para design responsivo.
+-   Usar um sistema de grid (ex: CSS Grid, Flexbox) para layout.
+-   Documentar padrões de design e estilos de componentes para consistência.
+
+## Suggested Metadata
+---
+description: Enforces modern UI/UX design principles, focusing on professional spacing, subtle animations, and a clean, user-centric aesthetic.
+globs: ["**/src/**/*.{js,jsx,ts,tsx,vue,svelte,css,scss,html}"]
+alwaysApply: true
+---
+

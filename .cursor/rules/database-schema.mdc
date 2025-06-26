@@ -1,0 +1,218 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Overview of the [SEUPROJETOAQUI] database schema (public).
+globs: ["src/app/api/**/*.ts", "src/lib/supabase.ts", "database/schema.sql", "database/migrations/**/*.sql"]
+alwaysApply: true
+---
+- Version: 1.1.0
+
+# Sistema de Orçamentos Database Schema
+
+## Purpose & Scope
+Este documento fornece uma visão geral do esquema de banco de dados principal do sistema de orçamentos (`public`) e funções dentro do Supabase. Ele descreve as principais tabelas, seus relacionamentos e padrões cruciais de interação, orientando tanto a IA quanto os desenvolvedores na consulta e mutação de dados com segurança e consistência.
+
+## Schema Overview (Public Schema)
+
+O schema `public` hospeda os dados principais da aplicação. Os principais grupos de entidades incluem:
+
+### Produtos e Matérias-Primas
+- **produtos**: Armazena informações sobre produtos finais e matérias-primas
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `nome`: TEXT NOT NULL - Nome do produto
+  - `descricao`: TEXT - Descrição detalhada do produto
+  - `preco_unitario`: DECIMAL(10, 2) NOT NULL CHECK (preco_unitario >= 0) - Preço por unidade
+  - `quantidade_estoque`: DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (quantidade_estoque >= 0) - Quantidade disponível em estoque
+  - `e_materia_prima`: BOOLEAN NOT NULL DEFAULT false - Indica se é matéria-prima
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Índices**:
+    - `idx_produtos_nome`: Índice para consultas por nome
+    - `idx_produtos_tipo`: Índice para filtrar por tipo (matéria-prima ou produto final)
+
+### Dependências entre Produtos
+- **dependencias_produtos**: Armazena relações entre produtos (composição)
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `produto_pai_id`: UUID NOT NULL REFERENCES produtos(id) ON DELETE CASCADE - ID do produto final
+  - `produto_filho_id`: UUID NOT NULL REFERENCES produtos(id) ON DELETE CASCADE - ID do produto/matéria-prima componente
+  - `quantidade_necessaria`: DECIMAL(10, 2) NOT NULL CHECK (quantidade_necessaria > 0) - Quantidade necessária do produto filho
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Constraints**:
+    - `uq_produto_pai_filho`: Garantia de que não exista mais de uma relação entre o mesmo par de produtos
+    - `ck_produto_pai_filho_different`: Impede que um produto dependa de si mesmo
+  - **Índices**:
+    - `idx_dependencias_produto_pai`: Índice para consultas de dependências por produto pai
+    - `idx_dependencias_produto_filho`: Índice para consultas de dependências por produto filho
+
+### Processos de Fabricação
+- **processos_fabricacao**: Armazena informações sobre processos de fabricação disponíveis
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `nome`: TEXT NOT NULL UNIQUE - Nome do processo (ex: "Usinagem", "Corte e Dobra")
+  - `preco_por_unidade`: DECIMAL(10, 2) NOT NULL CHECK (preco_por_unidade >= 0) - Custo por unidade processada
+  - `tempo_estimado_minutos`: INTEGER NOT NULL CHECK (tempo_estimado_minutos > 0) - Tempo estimado em minutos por unidade
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Índices**:
+    - `idx_processos_nome`: Índice para consultas por nome de processo
+
+### Mão de Obra
+- **mao_de_obra**: Armazena tipos de mão de obra e seus custos
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `tipo`: TEXT NOT NULL UNIQUE - Tipo de mão de obra (ex: "fabricacao", "desenho/projeto")
+  - `preco_por_hora`: DECIMAL(10, 2) NOT NULL CHECK (preco_por_hora > 0) - Custo por hora de trabalho
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Índices**:
+    - `idx_mao_de_obra_tipo`: Índice para consultas por tipo de mão de obra
+
+### Pedidos
+- **status_pedido**: ENUM ('pendente', 'em_producao', 'finalizado', 'cancelado')
+
+- **pedidos**: Armazena pedidos de fabricação
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `produto_id`: UUID NOT NULL REFERENCES produtos(id) ON DELETE RESTRICT - Produto a ser fabricado
+  - `quantidade`: INTEGER NOT NULL CHECK (quantidade > 0) - Quantidade solicitada
+  - `status`: status_pedido NOT NULL DEFAULT 'pendente' - Status atual do pedido
+  - `observacoes`: TEXT - Observações adicionais sobre o pedido
+  - `user_id`: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE - Usuário que criou o pedido
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Índices**:
+    - `idx_pedidos_produto`: Índice para consultas por produto
+    - `idx_pedidos_status`: Índice para consultas por status
+    - `idx_pedidos_user`: Índice para consultas por usuário
+
+- **processos_pedidos**: Associação entre pedidos e processos de fabricação
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `pedido_id`: UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE - Pedido associado
+  - `processo_id`: UUID NOT NULL REFERENCES processos_fabricacao(id) ON DELETE RESTRICT - Processo associado
+  - `quantidade`: INTEGER NOT NULL CHECK (quantidade > 0) - Quantidade de unidades para este processo
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Constraints**:
+    - `uq_pedido_processo`: Garantia de que não exista mais de uma associação entre o mesmo pedido e processo
+  - **Índices**:
+    - `idx_processos_pedidos_pedido`: Índice para consultas por pedido
+    - `idx_processos_pedidos_processo`: Índice para consultas por processo
+
+- **mao_de_obra_pedidos**: Associação entre pedidos e tipos de mão de obra
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `pedido_id`: UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE - Pedido associado
+  - `mao_de_obra_id`: UUID NOT NULL REFERENCES mao_de_obra(id) ON DELETE RESTRICT - Tipo de mão de obra associado
+  - `horas`: DECIMAL(10, 2) NOT NULL CHECK (horas > 0) - Horas estimadas para este tipo de mão de obra
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de criação do registro
+  - `updated_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data de atualização do registro
+  - **Constraints**:
+    - `uq_pedido_mao_de_obra`: Garantia de que não exista mais de uma associação entre o mesmo pedido e tipo de mão de obra
+  - **Índices**:
+    - `idx_mao_de_obra_pedidos_pedido`: Índice para consultas por pedido
+    - `idx_mao_de_obra_pedidos_mao_de_obra`: Índice para consultas por tipo de mão de obra
+
+- **historico_status_pedidos**: Registra mudanças de status dos pedidos
+  - `id`: UUID (PK) com valor padrão gen_random_uuid()
+  - `pedido_id`: UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE - Pedido associado
+  - `status_anterior`: status_pedido - Status anterior do pedido
+  - `status_novo`: status_pedido NOT NULL - Novo status do pedido
+  - `user_id`: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE - Usuário que realizou a mudança
+  - `created_at`: TIMESTAMPTZ NOT NULL DEFAULT NOW() - Data da mudança
+  - **Índices**:
+    - `idx_historico_status_pedidos_pedido`: Índice para consultas por pedido
+    - `idx_historico_status_pedidos_data`: Índice para consultas por data
+
+## Triggers
+
+1. **update_updated_at_column**: Atualiza automaticamente o campo `updated_at` para todas as tabelas que o possuem
+2. **registrar_mudanca_status_pedido**: Registra automaticamente as mudanças de status dos pedidos na tabela `historico_status_pedidos`
+
+## Functions
+
+### Funções de Cálculo de Orçamentos
+
+- **calcular_custo_materiais(produto_id UUID, quantidade INTEGER) RETURNS DECIMAL(12, 2)**
+  - Calcula o custo total de materiais para um produto, considerando suas dependências recursivamente
+  - Função SECURITY DEFINER para garantir acesso consistente aos dados
+
+- **calcular_custo_processos(pedido_id UUID) RETURNS DECIMAL(12, 2)**
+  - Calcula o custo total dos processos de fabricação associados a um pedido
+  - Função SECURITY DEFINER para garantir acesso consistente aos dados
+
+- **calcular_custo_mao_de_obra(pedido_id UUID) RETURNS DECIMAL(12, 2)**
+  - Calcula o custo total da mão de obra associada a um pedido
+  - Função SECURITY DEFINER para garantir acesso consistente aos dados
+
+- **calcular_tempo_producao(pedido_id UUID) RETURNS INTEGER**
+  - Calcula o tempo total estimado (em minutos) para produção de um pedido
+  - Função SECURITY DEFINER para garantir acesso consistente aos dados
+
+- **gerar_orcamento_detalhado(pedido_id UUID) RETURNS JSON**
+  - Gera um orçamento detalhado em formato JSON para um pedido
+  - Inclui custos de materiais, processos, mão de obra e tempo estimado
+  - Função SECURITY DEFINER para garantir acesso consistente aos dados
+
+## Row Level Security (RLS)
+
+### Políticas para tabela `produtos`
+- **Produtos visíveis apenas para usuários autenticados** (SELECT): Permite que usuários autenticados vejam todos os produtos
+- **Apenas usuários autenticados podem inserir produtos** (INSERT): Permite que usuários autenticados criem produtos
+- **Apenas usuários autenticados podem atualizar produtos** (UPDATE): Permite que usuários autenticados atualizem produtos
+- **Apenas usuários autenticados podem excluir produtos** (DELETE): Permite que usuários autenticados excluam produtos
+
+### Políticas para tabela `dependencias_produtos`
+- **Dependências visíveis apenas para usuários autenticados** (SELECT): Permite que usuários autenticados vejam todas as dependências
+- **Apenas usuários autenticados podem inserir dependências** (INSERT): Permite que usuários autenticados criem dependências
+- **Apenas usuários autenticados podem atualizar dependências** (UPDATE): Permite que usuários autenticados atualizem dependências
+- **Apenas usuários autenticados podem excluir dependências** (DELETE): Permite que usuários autenticados excluam dependências
+
+### Políticas para tabela `processos_fabricacao`
+- **Processos visíveis apenas para usuários autenticados** (SELECT): Permite que usuários autenticados vejam todos os processos
+- **Apenas usuários autenticados podem inserir processos** (INSERT): Permite que usuários autenticados criem processos
+- **Apenas usuários autenticados podem atualizar processos** (UPDATE): Permite que usuários autenticados atualizem processos
+- **Apenas usuários autenticados podem excluir processos** (DELETE): Permite que usuários autenticados excluam processos
+
+### Políticas para tabela `mao_de_obra`
+- **Tipos de mão de obra visíveis apenas para usuários autenticados** (SELECT): Permite que usuários autenticados vejam todos os tipos
+- **Apenas usuários autenticados podem inserir tipos de mão de obra** (INSERT): Permite que usuários autenticados criem tipos
+- **Apenas usuários autenticados podem atualizar tipos de mão de obra** (UPDATE): Permite que usuários autenticados atualizem tipos
+- **Apenas usuários autenticados podem excluir tipos de mão de obra** (DELETE): Permite que usuários autenticados excluam tipos
+
+### Políticas para tabela `pedidos`
+- **Usuários podem ver seus próprios pedidos** (SELECT): Permite que usuários vejam apenas seus próprios pedidos
+- **Usuários podem criar seus próprios pedidos** (INSERT): Permite que usuários criem pedidos próprios
+- **Usuários podem atualizar seus próprios pedidos** (UPDATE): Permite que usuários atualizem apenas seus próprios pedidos
+- **Usuários podem excluir seus próprios pedidos** (DELETE): Permite que usuários excluam apenas seus próprios pedidos
+
+### Políticas para tabela `processos_pedidos`
+- **Usuários podem ver processos de seus próprios pedidos** (SELECT)
+- **Usuários podem adicionar processos a seus próprios pedidos** (INSERT)
+- **Usuários podem atualizar processos de seus próprios pedidos** (UPDATE)
+- **Usuários podem excluir processos de seus próprios pedidos** (DELETE)
+
+### Políticas para tabela `mao_de_obra_pedidos`
+- **Usuários podem ver mão de obra de seus próprios pedidos** (SELECT)
+- **Usuários podem adicionar mão de obra a seus próprios pedidos** (INSERT)
+- **Usuários podem atualizar mão de obra de seus próprios pedidos** (UPDATE)
+- **Usuários podem excluir mão de obra de seus próprios pedidos** (DELETE)
+
+### Políticas para tabela `historico_status_pedidos`
+- **Usuários podem ver histórico de seus próprios pedidos** (SELECT)
+
+## Key Relationships
+
+1. Um produto pode ser dependente de vários outros produtos/matérias-primas (relação muitos-para-muitos através de `dependencias_produtos`)
+2. Um pedido está associado a um produto principal
+3. Um pedido pode requerer múltiplos processos de fabricação (relação muitos-para-muitos através de `processos_pedidos`)
+4. Um pedido pode requerer múltiplos tipos de mão de obra (relação muitos-para-muitos através de `mao_de_obra_pedidos`)
+5. As mudanças de status de um pedido são registradas na tabela `historico_status_pedidos`
+6. Os pedidos estão associados aos usuários que os criaram através do campo `user_id`
+
+## Restrictions
+- Não consultar ou modificar tabelas fora do schema `public`, a menos que seja explicitamente necessário para recursos do Supabase.
+- Utilizar as funções auxiliares de cálculo de orçamentos para garantir consistência nas consultas.
+- Respeitar as políticas RLS ao acessar os dados através de APIs.
+
+## Related Rules
+- @project.mdc: Estrutura geral do projeto, stack tecnológico e padrões de desenvolvimento.

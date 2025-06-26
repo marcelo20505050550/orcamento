@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Self-Correction Memory
+
+This file logs mistakes made by the AI and their corrections to prevent repetition and improve performance over time.
+
+### Correção: Acesso direto a params em componentes cliente no Next.js 15
+
+**Problema:**
+Em componentes cliente no Next.js 15, o objeto `params` (para parâmetros dinâmicos de rota) agora é uma Promise e não deve ser acessado diretamente. Quando um componente acessa diretamente uma propriedade como `params.id`, isso causa um aviso: "A param property was accessed directly with `params.id`. `params` is now a Promise and should be unwrapped with `React.use()` before accessing properties."
+
+**Causa:**
+No Next.js 15, os parâmetros de rota em componentes cliente foram alterados para usar um modelo assíncrono baseado em Promises, exigindo que os parâmetros sejam "desempacotados" usando `React.use()` antes de acessar suas propriedades.
+
+**Solução:**
+1. Importar `use` do React:
+   ```typescript
+   import { useState, useEffect, use } from 'react'
+   ```
+
+2. Desempacotar o objeto params usando `use()` antes de acessar suas propriedades:
+   ```typescript
+   // Antes (incorreto)
+   const processoId = params.id
+   
+   // Depois (correto)
+   const processoId = use(params).id
+   ```
+
+3. Arquivos atualizados:
+   - `src/app/processos/[id]/editar/page.tsx`
+   - `src/app/produtos/[id]/editar/page.tsx`
+   - `src/app/mao-de-obra/[id]/editar/page.tsx`
+   - `src/app/pedidos/[id]/processos/page.tsx`
+   - `src/app/pedidos/[id]/mao-de-obra/page.tsx`
+   - `src/app/pedidos/[id]/page.tsx`
+
+**Impacto:**
+Ao utilizar `React.use()` para desempacotar os parâmetros, eliminamos os avisos de console e preparamos a aplicação para compatibilidade com futuras versões do Next.js, onde o acesso direto será totalmente removido.
+
+---

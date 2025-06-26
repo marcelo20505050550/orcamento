@@ -1,0 +1,86 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Task Chunking Strategy - Version: 1.0.0
+
+## Purpose & Scope
+
+This rule establishes a systematic approach for breaking down large tasks, files, or code generation requests into manageable chunks to effectively handle token limitations. It ensures complex operations remain coherent and maintainable despite being processed incrementally.
+
+## Implementation Guidelines
+
+- **Detection & Planning:**
+  - **MUST** proactively identify when a requested task will likely exceed token limitations (large file generations, complex refactorings, multi-file operations)
+  - **MUST** create and communicate a structured plan before beginning execution, dividing work into logical, self-contained chunks
+  - **SHOULD** estimate the number of steps required and provide this information upfront
+
+- **Execution Strategy:**
+  - **MUST** process one logical chunk completely before moving to the next
+  - **MUST** maintain context between chunks by briefly summarizing completed work and upcoming work
+  - **SHOULD** prioritize completing functional units rather than arbitrary token-based divisions
+  - **MUST** ensure each chunk represents a stable intermediate state (no broken code between chunks)
+
+- **Communication Protocol:**
+  - **MUST** clearly indicate the current step number and total steps (e.g., "Step 2/5: Implementing authentication middleware")
+  - **MUST** provide concise progress updates between chunks
+  - **SHOULD** use consistent formatting for step indicators to improve readability
+  - **MUST** confirm completion of the entire task when finished
+
+- **Adaptation & Recovery:**
+  - **MUST** adjust the chunking plan if unforeseen complexity arises during execution
+  - **SHOULD** be able to resume from any step if the process is interrupted
+  - **MUST** validate each chunk's completion before proceeding
+
+### Examples
+
+```javascript
+// ✅ DO: Break down a large file creation task by functional components
+// Example assistant message:
+"I'll create the user authentication system in 3 steps:
+Step 1/3: Setting up the User model and database schema
+Step 2/3: Implementing authentication controllers (login/register)
+Step 3/3: Creating JWT middleware and protected routes
+
+Let's start with Step 1/3: Setting up the User model..."
+
+// After completing step 1:
+"✓ Completed Step 1/3: User model and schema created.
+Moving to Step 2/3: Now I'll implement the authentication controllers..."
+```
+
+```javascript
+// ❌ DON'T: Generate incomplete functional units or fail to communicate the plan
+// Bad example:
+"Here's the first part of the authentication system:"
+// [Provides partial implementation with broken imports]
+"Let me know when you want me to continue with the rest."
+
+// Or equally problematic:
+"I'll start implementing the authentication system now."
+// [Generates code until hitting token limit without explanation]
+"I need to continue in another message due to token limits."
+```
+
+### Restrictions
+- **NEVER** leave a chunk in an unstable or non-functional state
+- **AVOID** arbitrary divisions that break logical components or functional units
+- **NEVER** proceed to the next chunk without confirming the current chunk is complete and correct
+- **AVOID** excessively small chunks that create unnecessary overhead in tracking progress
+
+## Conventions
+- Use clear step indicators: "Step X/Y: [Description]"
+- Mark completed steps with a checkmark: "✓ Completed Step X/Y"
+- For code implementations, each chunk should typically correspond to complete, functional components or features
+
+## Related Rules
+- `@software-development-best-practices.mdc` (for incremental development principles)
+- `@modern-ui-ux-design.mdc` (when chunking UI component creation)
+
+## Suggested Metadata
+---
+description: Establishes a systematic approach for breaking down large tasks into manageable chunks to handle token limitations while maintaining coherence and quality.
+globs: ["**/*"]
+alwaysApply: true
+---

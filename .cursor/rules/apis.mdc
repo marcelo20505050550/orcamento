@@ -1,0 +1,1571 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# orçamentos API Documentation - Version: 1.0.0
+
+## Purpose & Scope
+
+Este documento serve como repositório central para documentação de todos os endpoints de API no sistema de orçamentos. Ele fornece detalhes sobre caminhos de endpoints, métodos HTTP, propósito, formatos de requisição/resposta e requisitos de autenticação.
+
+**DEVE** ser consultado e atualizado sempre que endpoints de API forem criados, modificados ou excluídos, conforme determinado por `@memory.mdc`.
+
+## API endpoint example
+
+---
+
+### `[HTTP_METHOD] /path/to/endpoint`
+
+*   **Purpose:** [Briefly describe what the endpoint does.]
+*   **Authentication:** [Specify required authentication (e.g., Clerk user, Public, None, Admin Role).] 
+*   **Request Parameters (URL/Query):**
+    *   `paramName` (type): [Description, e.g., required, optional, validation rules].
+*   **Request Body (JSON):**
+    ```json
+    {
+      "key": "value_type" // Description
+    }
+    ```
+*   **Success Response (200 OK):**
+    ```json
+    {
+      "key": "value_type" // Description
+    }
+    ```
+*   **Error Responses:**
+    *   `400 Bad Request`: [Reason, e.g., Invalid input data.]
+    *   `401 Unauthorized`: [Reason, e.g., Missing or invalid authentication token.]
+    *   `403 Forbidden`: [Reason, e.g., Insufficient permissions.]
+    *   `404 Not Found`: [Reason, e.g., Resource not found.]
+    *   `500 Internal Server Error`: [Reason, e.g., Unexpected server error.]
+*   **Notes:** [Any additional information, implementation details, or usage notes.]
+
+---
+
+## API Endpoints
+
+---
+
+### `POST /api/auth/login`
+
+* **Purpose:** Autenticar um usuário com email e senha.
+* **Authentication:** Nenhuma (rota pública)
+* **Request Body (JSON):**
+  ```json
+  {
+    "email": "string", // Email do usuário
+    "password": "string" // Senha do usuário
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "user": {
+      "id": "string",
+      "email": "string",
+      "user_metadata": {
+        "nome": "string"
+      }
+    },
+    "session": {
+      "access_token": "string",
+      "refresh_token": "string",
+      "expires_at": "number"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Credenciais inválidas.
+  * `500 Internal Server Error`: Erro inesperado no servidor.
+* **Notes:** Utiliza o serviço de autenticação do Supabase.
+
+---
+
+### `POST /api/auth/register`
+
+* **Purpose:** Registrar um novo usuário no sistema.
+* **Authentication:** Nenhuma (rota pública)
+* **Request Body (JSON):**
+  ```json
+  {
+    "email": "string", // Email do usuário
+    "password": "string", // Senha do usuário (mínimo 8 caracteres)
+    "nome": "string" // Nome completo do usuário
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "user": {
+      "id": "string",
+      "email": "string",
+      "user_metadata": {
+        "nome": "string"
+      }
+    },
+    "session": {
+      "access_token": "string",
+      "refresh_token": "string",
+      "expires_at": "number"
+    },
+    "message": "Usuário registrado com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `409 Conflict`: Email já está em uso.
+  * `500 Internal Server Error`: Erro inesperado no servidor.
+* **Notes:** Utiliza o serviço de autenticação do Supabase.
+
+---
+
+### `GET /api/produtos`
+
+* **Purpose:** Listar todos os produtos e matérias-primas cadastrados (US-009).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `page` (number): Página atual para paginação (opcional, padrão: 1).
+  * `pageSize` (number): Tamanho da página para paginação (opcional, padrão: 10).
+  * `materiaPrima` (boolean): Filtrar apenas matérias-primas quando "true" (opcional).
+  * `search` (string): Buscar produtos por nome (opcional).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "nome": "string",
+        "descricao": "string",
+        "preco_unitario": "number",
+        "quantidade_estoque": "number",
+        "e_materia_prima": "boolean",
+        "created_at": "timestamp",
+        "updated_at": "timestamp"
+      }
+    ],
+    "pagination": {
+      "total": "number",
+      "page": "number",
+      "pageSize": "number",
+      "totalPages": "number"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Os resultados são ordenados por nome e paginados conforme parâmetros.
+
+---
+
+### `POST /api/produtos`
+
+* **Purpose:** Cadastrar um novo produto ou matéria-prima (US-001).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Body (JSON):**
+  ```json
+  {
+    "nome": "string", // Nome do produto (obrigatório)
+    "descricao": "string", // Descrição detalhada (opcional)
+    "preco_unitario": "number", // Preço por unidade (obrigatório, deve ser positivo)
+    "quantidade_estoque": "number", // Quantidade em estoque (opcional, padrão: 0)
+    "e_materia_prima": "boolean" // Indica se é matéria-prima (opcional, padrão: false)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Produto cadastrado com sucesso",
+    "data": {
+      "id": "uuid",
+      "nome": "string",
+      "descricao": "string",
+      "preco_unitario": "number",
+      "quantidade_estoque": "number",
+      "e_materia_prima": "boolean",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `409 Conflict`: Já existe um produto com este nome.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** O ID é gerado automaticamente pelo banco de dados.
+
+---
+
+### `GET /api/produtos/[id]`
+
+* **Purpose:** Obter detalhes de um produto específico.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do produto a ser consultado.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "id": "uuid",
+      "nome": "string",
+      "descricao": "string",
+      "preco_unitario": "number",
+      "quantidade_estoque": "number",
+      "e_materia_prima": "boolean",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do produto não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Produto não encontrado.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna todos os detalhes do produto solicitado.
+
+---
+
+### `PUT /api/produtos/[id]`
+
+* **Purpose:** Atualizar informações de um produto existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do produto a ser atualizado.
+* **Request Body (JSON):**
+  ```json
+  {
+    "nome": "string", // Nome do produto (opcional)
+    "descricao": "string", // Descrição detalhada (opcional)
+    "preco_unitario": "number", // Preço por unidade (opcional, deve ser positivo)
+    "quantidade_estoque": "number", // Quantidade em estoque (opcional, deve ser positivo)
+    "e_materia_prima": "boolean" // Indica se é matéria-prima (opcional)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Produto atualizado com sucesso",
+    "data": {
+      "id": "uuid",
+      "nome": "string",
+      "descricao": "string",
+      "preco_unitario": "number",
+      "quantidade_estoque": "number",
+      "e_materia_prima": "boolean",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Produto não encontrado.
+  * `409 Conflict`: Já existe um produto com este nome.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Apenas os campos fornecidos na requisição serão atualizados.
+
+---
+
+### `DELETE /api/produtos/[id]`
+
+* **Purpose:** Excluir um produto existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do produto a ser excluído.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Produto excluído com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do produto não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Produto não encontrado.
+  * `409 Conflict`: Não é possível excluir o produto pois ele está sendo usado em outros registros.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível excluir produtos que estão sendo utilizados como dependências de outros produtos ou em pedidos.
+
+---
+
+### `GET /api/produtos/[id]/dependencias`
+
+* **Purpose:** Listar todas as dependências relacionadas a um produto específico.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do produto para listar dependências.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "produto": {
+        "id": "uuid",
+        "nome": "string"
+      },
+      "componentes_necessarios": [
+        {
+          "id": "uuid",
+          "quantidade_necessaria": "number",
+          "produto_filho": {
+            "id": "uuid",
+            "nome": "string",
+            "descricao": "string",
+            "preco_unitario": "number",
+            "quantidade_estoque": "number",
+            "e_materia_prima": "boolean"
+          }
+        }
+      ],
+      "utilizado_em": [
+        {
+          "id": "uuid",
+          "quantidade_necessaria": "number",
+          "produto_pai": {
+            "id": "uuid",
+            "nome": "string",
+            "descricao": "string",
+            "preco_unitario": "number",
+            "quantidade_estoque": "number",
+            "e_materia_prima": "boolean"
+          }
+        }
+      ]
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do produto não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Produto não encontrado.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna tanto os componentes necessários para o produto (onde ele é pai) quanto os produtos que utilizam o produto especificado (onde ele é filho).
+
+---
+
+### `GET /api/dependencias`
+
+* **Purpose:** Listar todas as dependências entre produtos (US-002).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `page` (number): Página atual para paginação (opcional, padrão: 1).
+  * `pageSize` (number): Tamanho da página para paginação (opcional, padrão: 10).
+  * `produtoPaiId` (uuid): Filtrar por produto pai específico (opcional).
+  * `produtoFilhoId` (uuid): Filtrar por produto filho específico (opcional).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "produto_pai_id": "uuid",
+        "produto_filho_id": "uuid",
+        "quantidade_necessaria": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "produto_pai": {
+          "id": "uuid",
+          "nome": "string",
+          "preco_unitario": "number",
+          "e_materia_prima": "boolean"
+        },
+        "produto_filho": {
+          "id": "uuid",
+          "nome": "string",
+          "preco_unitario": "number",
+          "e_materia_prima": "boolean"
+        }
+      }
+    ],
+    "pagination": {
+      "total": "number",
+      "page": "number",
+      "pageSize": "number",
+      "totalPages": "number"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Os resultados são ordenados por data de criação (mais recentes primeiro) e paginados conforme parâmetros.
+
+---
+
+### `POST /api/dependencias`
+
+* **Purpose:** Cadastrar uma nova dependência entre produtos (US-002).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Body (JSON):**
+  ```json
+  {
+    "produto_pai_id": "uuid", // ID do produto pai (obrigatório)
+    "produto_filho_id": "uuid", // ID do produto filho (obrigatório)
+    "quantidade_necessaria": "number" // Quantidade necessária (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Dependência cadastrada com sucesso",
+    "data": {
+      "id": "uuid",
+      "produto_pai_id": "uuid",
+      "produto_filho_id": "uuid",
+      "quantidade_necessaria": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "produto_pai": {
+        "id": "uuid",
+        "nome": "string"
+      },
+      "produto_filho": {
+        "id": "uuid",
+        "nome": "string"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Produto pai ou filho não encontrado.
+  * `409 Conflict`: Já existe uma dependência entre esses produtos.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é permitido criar dependências circulares ou um produto depender de si mesmo.
+
+---
+
+### `GET /api/dependencias/[id]`
+
+* **Purpose:** Obter detalhes de uma dependência específica.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da dependência a ser consultada.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "id": "uuid",
+      "produto_pai_id": "uuid",
+      "produto_filho_id": "uuid",
+      "quantidade_necessaria": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "produto_pai": {
+        "id": "uuid",
+        "nome": "string",
+        "preco_unitario": "number",
+        "e_materia_prima": "boolean"
+      },
+      "produto_filho": {
+        "id": "uuid",
+        "nome": "string",
+        "preco_unitario": "number",
+        "e_materia_prima": "boolean"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID da dependência não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Dependência não encontrada.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna todos os detalhes da dependência solicitada, incluindo informações dos produtos relacionados.
+
+---
+
+### `PUT /api/dependencias/[id]`
+
+* **Purpose:** Atualizar uma dependência existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da dependência a ser atualizada.
+* **Request Body (JSON):**
+  ```json
+  {
+    "quantidade_necessaria": "number" // Nova quantidade necessária (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Dependência atualizada com sucesso",
+    "data": {
+      "id": "uuid",
+      "produto_pai_id": "uuid",
+      "produto_filho_id": "uuid",
+      "quantidade_necessaria": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "produto_pai": {
+        "id": "uuid",
+        "nome": "string"
+      },
+      "produto_filho": {
+        "id": "uuid",
+        "nome": "string"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Dependência não encontrada.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Apenas é possível atualizar a quantidade necessária, não os produtos relacionados.
+
+---
+
+### `DELETE /api/dependencias/[id]`
+
+* **Purpose:** Remover uma dependência existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da dependência a ser removida.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Dependência removida com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID da dependência não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Dependência não encontrada.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Remove completamente a relação de dependência entre os produtos.
+
+---
+
+### `GET /api/processos`
+
+* **Purpose:** Listar todos os processos de fabricação cadastrados.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `page` (number): Página atual para paginação (opcional, padrão: 1).
+  * `pageSize` (number): Tamanho da página para paginação (opcional, padrão: 10).
+  * `search` (string): Buscar processos por nome (opcional).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "nome": "string",
+        "preco_por_unidade": "number",
+        "tempo_estimado_minutos": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp"
+      }
+    ],
+    "pagination": {
+      "total": "number",
+      "page": "number",
+      "pageSize": "number",
+      "totalPages": "number"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Os resultados são ordenados por nome e paginados conforme parâmetros.
+
+---
+
+### `POST /api/processos`
+
+* **Purpose:** Cadastrar um novo processo de fabricação (US-003).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Body (JSON):**
+  ```json
+  {
+    "nome": "string", // Nome do processo (obrigatório)
+    "preco_por_unidade": "number", // Preço por hora (obrigatório, deve ser positivo ou zero)
+    "tempo_estimado_minutos": "number" // Tempo estimado em minutos por unidade (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Processo cadastrado com sucesso",
+    "data": {
+      "id": "uuid",
+      "nome": "string",
+      "preco_por_unidade": "number",
+      "tempo_estimado_minutos": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `409 Conflict`: Já existe um processo com este nome.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** O ID é gerado automaticamente pelo banco de dados.
+
+---
+
+### `GET /api/processos/[id]`
+
+* **Purpose:** Obter detalhes de um processo de fabricação específico.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do processo a ser consultado.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "id": "uuid",
+      "nome": "string",
+      "preco_por_unidade": "number",
+      "tempo_estimado_minutos": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do processo não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Processo não encontrado.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna todos os detalhes do processo solicitado.
+
+---
+
+### `PUT /api/processos/[id]`
+
+* **Purpose:** Atualizar informações de um processo de fabricação existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do processo a ser atualizado.
+* **Request Body (JSON):**
+  ```json
+  {
+    "nome": "string", // Nome do processo (opcional)
+    "preco_por_unidade": "number", // Preço por hora (opcional, deve ser positivo ou zero)
+    "tempo_estimado_minutos": "number" // Tempo estimado em minutos por unidade (opcional, deve ser positivo)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Processo atualizado com sucesso",
+    "data": {
+      "id": "uuid",
+      "nome": "string",
+      "preco_por_unidade": "number",
+      "tempo_estimado_minutos": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou nenhum dado fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Processo não encontrado.
+  * `409 Conflict`: Já existe outro processo com este nome.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Apenas os campos fornecidos na requisição serão atualizados.
+
+---
+
+### `DELETE /api/processos/[id]`
+
+* **Purpose:** Excluir um processo de fabricação existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do processo a ser excluído.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Processo removido com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do processo não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Processo não encontrado.
+  * `409 Conflict`: Não é possível excluir o processo pois ele está sendo usado em pedidos.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível excluir processos que estão sendo utilizados em pedidos.
+
+---
+
+### `GET /api/mao-de-obra`
+
+* **Purpose:** Listar todos os tipos de mão de obra cadastrados.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `page` (number): Página atual para paginação (opcional, padrão: 1).
+  * `pageSize` (number): Tamanho da página para paginação (opcional, padrão: 10).
+  * `search` (string): Buscar tipos de mão de obra por nome (opcional).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "tipo": "string",
+        "preco_por_hora": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp"
+      }
+    ],
+    "pagination": {
+      "total": "number",
+      "page": "number",
+      "pageSize": "number",
+      "totalPages": "number"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Os resultados são ordenados por tipo e paginados conforme parâmetros.
+
+---
+
+### `POST /api/mao-de-obra`
+
+* **Purpose:** Cadastrar um novo tipo de mão de obra (US-004).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Body (JSON):**
+  ```json
+  {
+    "tipo": "string", // Tipo de mão de obra (obrigatório)
+    "preco_por_hora": "number" // Preço por hora (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Tipo de mão de obra cadastrado com sucesso",
+    "data": {
+      "id": "uuid",
+      "tipo": "string",
+      "preco_por_hora": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `409 Conflict`: Já existe um tipo de mão de obra com este nome.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** O ID é gerado automaticamente pelo banco de dados.
+
+---
+
+### `GET /api/mao-de-obra/[id]`
+
+* **Purpose:** Obter detalhes de um tipo de mão de obra específico.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do tipo de mão de obra a ser consultado.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "id": "uuid",
+      "tipo": "string",
+      "preco_por_hora": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do tipo de mão de obra não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Tipo de mão de obra não encontrado.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna todos os detalhes do tipo de mão de obra solicitado.
+
+---
+
+### `PUT /api/mao-de-obra/[id]`
+
+* **Purpose:** Atualizar informações de um tipo de mão de obra existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do tipo de mão de obra a ser atualizado.
+* **Request Body (JSON):**
+  ```json
+  {
+    "tipo": "string", // Tipo de mão de obra (opcional)
+    "preco_por_hora": "number" // Preço por hora (opcional, deve ser positivo)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Tipo de mão de obra atualizado com sucesso",
+    "data": {
+      "id": "uuid",
+      "tipo": "string",
+      "preco_por_hora": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou nenhum dado fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Tipo de mão de obra não encontrado.
+  * `409 Conflict`: Já existe outro tipo de mão de obra com este nome.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Apenas os campos fornecidos na requisição serão atualizados.
+
+---
+
+### `DELETE /api/mao-de-obra/[id]`
+
+* **Purpose:** Excluir um tipo de mão de obra existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do tipo de mão de obra a ser excluído.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Tipo de mão de obra removido com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do tipo de mão de obra não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Tipo de mão de obra não encontrado.
+  * `409 Conflict`: Não é possível excluir o tipo de mão de obra pois ele está sendo usado em pedidos.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível excluir tipos de mão de obra que estão sendo utilizados em pedidos.
+
+---
+
+### `GET /api/pedidos`
+
+* **Purpose:** Listar todos os pedidos do usuário atual (US-013).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `page` (number): Página atual para paginação (opcional, padrão: 1).
+  * `pageSize` (number): Tamanho da página para paginação (opcional, padrão: 10).
+  * `status` (string): Filtrar por status específico (opcional).
+  * `produto_id` (uuid): Filtrar por produto específico (opcional).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "produto_id": "uuid",
+        "quantidade": "number",
+        "status": "string",
+        "observacoes": "string",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "produto": {
+          "id": "uuid",
+          "nome": "string",
+          "preco_unitario": "number"
+        }
+      }
+    ],
+    "pagination": {
+      "total": "number",
+      "page": "number",
+      "pageSize": "number",
+      "totalPages": "number"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Os resultados são ordenados por data de criação (mais recentes primeiro) e paginados conforme parâmetros.
+
+---
+
+### `POST /api/pedidos`
+
+* **Purpose:** Criar um novo pedido (US-005).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Body (JSON):**
+  ```json
+  {
+    "produto_id": "uuid", // ID do produto (obrigatório)
+    "quantidade": "number", // Quantidade solicitada (obrigatório, deve ser positivo)
+    "observacoes": "string" // Observações adicionais (opcional)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Pedido criado com sucesso",
+    "data": {
+      "id": "uuid",
+      "produto_id": "uuid",
+      "quantidade": "number",
+      "status": "pendente",
+      "observacoes": "string",
+      "user_id": "uuid",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "produto": {
+        "id": "uuid",
+        "nome": "string"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Produto não encontrado.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** O status inicial do pedido é sempre "pendente".
+
+---
+
+### `GET /api/pedidos/[id]`
+
+* **Purpose:** Obter detalhes de um pedido específico.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido a ser consultado.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "id": "uuid",
+      "produto_id": "uuid",
+      "quantidade": "number",
+      "status": "string",
+      "observacoes": "string",
+      "user_id": "uuid",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "produto": {
+        "id": "uuid",
+        "nome": "string",
+        "descricao": "string",
+        "preco_unitario": "number"
+      },
+      "processos": [
+        {
+          "id": "uuid",
+          "processo_id": "uuid",
+          "quantidade": "number",
+          "processo": {
+            "id": "uuid",
+            "nome": "string",
+            "preco_por_unidade": "number",
+            "tempo_estimado_minutos": "number"
+          }
+        }
+      ],
+      "mao_de_obra": [
+        {
+          "id": "uuid",
+          "mao_de_obra_id": "uuid",
+          "horas": "number",
+          "mao_de_obra": {
+            "id": "uuid",
+            "tipo": "string",
+            "preco_por_hora": "number"
+          }
+        }
+      ]
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do pedido não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Inclui detalhes do produto, processos e mão de obra associados ao pedido.
+
+---
+
+### `PUT /api/pedidos/[id]`
+
+* **Purpose:** Atualizar informações ou status de um pedido existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido a ser atualizado.
+* **Request Body (JSON):**
+  ```json
+  {
+    "status": "string", // Novo status do pedido (opcional)
+    "observacoes": "string" // Novas observações (opcional)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Pedido atualizado com sucesso",
+    "data": {
+      "id": "uuid",
+      "produto_id": "uuid",
+      "quantidade": "number",
+      "status": "string",
+      "observacoes": "string",
+      "user_id": "uuid",
+      "created_at": "timestamp",
+      "updated_at": "timestamp"
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou nenhum dado fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `409 Conflict`: Não é possível atualizar pedidos finalizados ou cancelados.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Apenas o status e as observações podem ser atualizados. O histórico de mudanças de status é registrado automaticamente.
+
+---
+
+### `DELETE /api/pedidos/[id]`
+
+* **Purpose:** Excluir um pedido existente.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido a ser excluído.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Pedido excluído com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do pedido não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `409 Conflict`: Não é possível excluir pedidos finalizados ou em produção.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Apenas pedidos com status "pendente" ou "cancelado" podem ser excluídos.
+
+---
+
+### `GET /api/pedidos/[id]/processos`
+
+* **Purpose:** Listar todos os processos de fabricação associados a um pedido.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "pedido_id": "uuid",
+        "processo_id": "uuid",
+        "quantidade": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "processo": {
+          "id": "uuid",
+          "nome": "string",
+          "preco_por_unidade": "number",
+          "tempo_estimado_minutos": "number"
+        }
+      }
+    ]
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do pedido não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna todos os processos de fabricação associados ao pedido.
+
+---
+
+### `POST /api/pedidos/[id]/processos`
+
+* **Purpose:** Adicionar um processo de fabricação a um pedido (US-006).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido.
+* **Request Body (JSON):**
+  ```json
+  {
+    "processo_id": "uuid", // ID do processo (obrigatório)
+    "quantidade": "number" // Quantidade a ser processada (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Processo associado ao pedido com sucesso",
+    "data": {
+      "id": "uuid",
+      "pedido_id": "uuid",
+      "processo_id": "uuid",
+      "quantidade": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "processo": {
+        "id": "uuid",
+        "nome": "string",
+        "preco_por_unidade": "number",
+        "tempo_estimado_minutos": "number"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido ou processo não encontrado, ou pedido não pertence ao usuário atual.
+  * `409 Conflict`: Processo já associado ao pedido ou pedido com status que não permite alterações.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível adicionar processos a pedidos finalizados ou cancelados.
+
+---
+
+### `GET /api/pedidos/[id]/mao-de-obra`
+
+* **Purpose:** Listar todos os tipos de mão de obra associados a um pedido.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "pedido_id": "uuid",
+        "mao_de_obra_id": "uuid",
+        "horas": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "mao_de_obra": {
+          "id": "uuid",
+          "tipo": "string",
+          "preco_por_hora": "number"
+        }
+      }
+    ]
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do pedido não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Retorna todos os tipos de mão de obra associados ao pedido.
+
+---
+
+### `POST /api/pedidos/[id]/mao-de-obra`
+
+* **Purpose:** Adicionar um tipo de mão de obra a um pedido (US-007).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID do pedido.
+* **Request Body (JSON):**
+  ```json
+  {
+    "mao_de_obra_id": "uuid", // ID do tipo de mão de obra (obrigatório)
+    "horas": "number" // Quantidade de horas (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "message": "Mão de obra associada ao pedido com sucesso",
+    "data": {
+      "id": "uuid",
+      "pedido_id": "uuid",
+      "mao_de_obra_id": "uuid",
+      "horas": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "mao_de_obra": {
+        "id": "uuid",
+        "tipo": "string",
+        "preco_por_hora": "number"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido ou tipo de mão de obra não encontrado, ou pedido não pertence ao usuário atual.
+  * `409 Conflict`: Tipo de mão de obra já associado ao pedido ou pedido com status que não permite alterações.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível adicionar mão de obra a pedidos finalizados ou cancelados.
+
+---
+
+### `PUT /api/pedidos/processos/[id]`
+
+* **Purpose:** Atualizar a quantidade de um processo de fabricação associado a um pedido.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da associação entre pedido e processo.
+* **Request Body (JSON):**
+  ```json
+  {
+    "quantidade": "number" // Nova quantidade (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Processo de pedido atualizado com sucesso",
+    "data": {
+      "id": "uuid",
+      "pedido_id": "uuid",
+      "processo_id": "uuid",
+      "quantidade": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "processo": {
+        "id": "uuid",
+        "nome": "string",
+        "preco_por_unidade": "number",
+        "tempo_estimado_minutos": "number"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Associação não encontrada ou não pertence ao usuário atual.
+  * `409 Conflict`: Pedido com status que não permite alterações.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível atualizar processos de pedidos finalizados ou cancelados.
+
+---
+
+### `DELETE /api/pedidos/processos/[id]`
+
+* **Purpose:** Remover um processo de fabricação de um pedido.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da associação entre pedido e processo.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Processo removido do pedido com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID da associação não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Associação não encontrada ou não pertence ao usuário atual.
+  * `409 Conflict`: Pedido com status que não permite alterações.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível remover processos de pedidos finalizados ou cancelados.
+
+---
+
+### `PUT /api/pedidos/mao-de-obra/[id]`
+
+* **Purpose:** Atualizar as horas de um tipo de mão de obra associado a um pedido.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da associação entre pedido e mão de obra.
+* **Request Body (JSON):**
+  ```json
+  {
+    "horas": "number" // Nova quantidade de horas (obrigatório, deve ser positivo)
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Mão de obra de pedido atualizada com sucesso",
+    "data": {
+      "id": "uuid",
+      "pedido_id": "uuid",
+      "mao_de_obra_id": "uuid",
+      "horas": "number",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "mao_de_obra": {
+        "id": "uuid",
+        "tipo": "string",
+        "preco_por_hora": "number"
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Dados de entrada inválidos ou incompletos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Associação não encontrada ou não pertence ao usuário atual.
+  * `409 Conflict`: Pedido com status que não permite alterações.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível atualizar mão de obra de pedidos finalizados ou cancelados.
+
+---
+
+### `DELETE /api/pedidos/mao-de-obra/[id]`
+
+* **Purpose:** Remover um tipo de mão de obra de um pedido.
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL):**
+  * `id` (uuid): ID da associação entre pedido e mão de obra.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "Mão de obra removida do pedido com sucesso"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID da associação não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Associação não encontrada ou não pertence ao usuário atual.
+  * `409 Conflict`: Pedido com status que não permite alterações.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Não é possível remover mão de obra de pedidos finalizados ou cancelados.
+
+---
+
+### `GET /api/orcamentos`
+
+* **Purpose:** Gerar um orçamento detalhado para um pedido (US-008).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `pedido_id` (uuid): ID do pedido para gerar o orçamento (obrigatório).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "pedido_id": "uuid",
+      "custo_total_materiais": "number",
+      "custo_total_processos": "number",
+      "custo_total_mao_de_obra": "number",
+      "custo_total": "number",
+      "tempo_estimado_producao_minutos": "number",
+      "detalhes_materiais": [
+        {
+          "produto_id": "uuid",
+          "nome": "string",
+          "quantidade": "number",
+          "preco_unitario": "number",
+          "subtotal": "number"
+        }
+      ],
+      "detalhes_processos": [
+        {
+          "processo_id": "uuid",
+          "nome": "string",
+          "quantidade": "number",
+          "preco_por_unidade": "number",
+          "subtotal": "number",
+          "tempo_estimado_minutos": "number"
+        }
+      ],
+      "detalhes_mao_de_obra": [
+        {
+          "mao_de_obra_id": "uuid",
+          "tipo": "string",
+          "horas": "number",
+          "preco_por_hora": "number",
+          "subtotal": "number"
+        }
+      ]
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do pedido não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Utiliza a função RPC `gerar_orcamento_detalhado` do Supabase para calcular os custos.
+
+---
+
+### `GET /api/orcamentos/exportar`
+
+* **Purpose:** Exportar um orçamento em formato estruturado para compartilhar com clientes (US-014).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Parameters (URL/Query):**
+  * `pedido_id` (uuid): ID do pedido para exportar o orçamento (obrigatório).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "data": {
+      "informacoes_gerais": {
+        "codigo_orcamento": "string",
+        "data_geracao": "string",
+        "data_validade": "string",
+        "valido_por_dias": "number"
+      },
+      "cliente": {
+        "id": "uuid",
+        "email": "string",
+        "nome": "string"
+      },
+      "produto": {
+        "id": "uuid",
+        "nome": "string",
+        "descricao": "string",
+        "quantidade": "number",
+        "preco_unitario": "number"
+      },
+      "pedido": {
+        "id": "uuid",
+        "status": "string",
+        "observacoes": "string"
+      },
+      "detalhamento": {
+        "materiais": [
+          {
+            "nome": "string",
+            "quantidade": "number",
+            "preco_unitario": "number",
+            "subtotal": "number"
+          }
+        ],
+        "processos": [
+          {
+            "nome": "string",
+            "quantidade": "number",
+            "preco_por_unidade": "number",
+            "tempo_estimado_minutos": "number",
+            "subtotal": "number"
+          }
+        ],
+        "mao_de_obra": [
+          {
+            "tipo": "string",
+            "horas": "number",
+            "preco_por_hora": "number",
+            "subtotal": "number"
+          }
+        ]
+      },
+      "resumo": {
+        "custo_total_materiais": "number",
+        "custo_total_processos": "number",
+        "custo_total_mao_de_obra": "number",
+        "custo_total": "number",
+        "tempo_estimado_producao_minutos": "number",
+        "tempo_estimado_producao_horas": "number"
+      },
+      "observacoes": ["string"]
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: ID do pedido não fornecido.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `404 Not Found`: Pedido não encontrado ou não pertence ao usuário atual.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Inclui informações formatadas para apresentação ao cliente, como data de validade, informações do cliente e observações adicionais.
+
+---
+
+### `PATCH /api/orcamentos/precos`
+
+* **Purpose:** Atualizar preços de produtos, processos e mão de obra em lote (US-015).
+* **Authentication:** Requer token JWT no cabeçalho Authorization.
+* **Request Body (JSON):**
+  ```json
+  {
+    "produtos": [
+      {
+        "id": "uuid",
+        "preco_unitario": "number"
+      }
+    ],
+    "processos": [
+      {
+        "id": "uuid",
+        "preco_por_unidade": "number"
+      }
+    ],
+    "mao_de_obra": [
+      {
+        "id": "uuid",
+        "preco_por_hora": "number"
+      }
+    ]
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "message": "string",
+    "data": {
+      "produtos": {
+        "sucesso": "number",
+        "erros": "number",
+        "detalhes": [
+          {
+            "id": "uuid",
+            "nome": "string",
+            "preco_atualizado": "number"
+          }
+        ]
+      },
+      "processos": {
+        "sucesso": "number",
+        "erros": "number",
+        "detalhes": [
+          {
+            "id": "uuid",
+            "nome": "string",
+            "preco_atualizado": "number"
+          }
+        ]
+      },
+      "mao_de_obra": {
+        "sucesso": "number",
+        "erros": "number",
+        "detalhes": [
+          {
+            "id": "uuid",
+            "tipo": "string",
+            "preco_atualizado": "number"
+          }
+        ]
+      }
+    }
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Nenhum item para atualização fornecido ou dados inválidos.
+  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
+  * `500 Internal Server Error`: Erro ao processar a requisição.
+* **Notes:** Permite atualizar múltiplos itens em uma única requisição. Retorna detalhes de sucessos e falhas para cada item processado.
+
+---
+
+## Related Rules
+
+- `@memory.mdc`: Mandates consultation and updates to this file.
+- `@api-development-standards.mdc`: Defines standards for creating API endpoints.
+
+## Suggested Metadata
+---
+description: Central documentation for all orçamentos API endpoints.
+globs: ["src/app/api/**/*.ts"]
+alwaysApply: false
+---
