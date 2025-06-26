@@ -13,6 +13,36 @@ const logFormat = printf(({ level, message, timestamp }) => {
   return `[${timestamp}] ${level}: ${message}`;
 });
 
+// Configuração de transports baseada no ambiente
+const getTransports = () => {
+  const logTransports: winston.transport[] = [
+    // Console sempre ativo para permitir visualização dos logs no Vercel
+    new transports.Console({
+      format: combine(
+        colorize(),
+        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        logFormat
+      ),
+    })
+  ];
+
+  // Em desenvolvimento local, adiciona arquivos de log
+  // No Vercel (produção), não adiciona file transports pois o sistema de arquivos é readonly
+  if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+    try {
+      logTransports.push(
+        new transports.File({ filename: 'logs/error.log', level: 'error' }),
+        new transports.File({ filename: 'logs/combined.log' })
+      );
+    } catch (error) {
+      // Se não conseguir criar os arquivos, continua apenas com console
+      console.warn('Não foi possível criar arquivos de log, usando apenas console:', error);
+    }
+  }
+
+  return logTransports;
+};
+
 // Cria a instância do logger com configurações personalizadas
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
@@ -20,45 +50,46 @@ const logger = winston.createLogger({
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     logFormat
   ),
-  transports: [
-    // Logs no console para desenvolvimento
-    new transports.Console({
-      format: combine(
-        colorize(),
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        logFormat
-      ),
-    }),
-    // Logs em arquivo para produção
-    ...(process.env.NODE_ENV === 'production'
-      ? [
-          new transports.File({ filename: 'logs/error.log', level: 'error' }),
-          new transports.File({ filename: 'logs/combined.log' }),
-        ]
-      : []),
-  ],
+  transports: getTransports(),
 });
 
 // Funções para registro de diferentes níveis de log
 export const logDebug = (message: string, meta?: any) => {
-  logger.debug(meta ? `${message} ${JSON.stringify(meta)}` : message);
+  try {
+    logger.debug(meta ? `${message} ${JSON.stringify(meta)}` : message);
+  } catch (error) {
+    console.debug(message, meta);
+  }
 };
 
 export const logInfo = (message: string, meta?: any) => {
-  logger.info(meta ? `${message} ${JSON.stringify(meta)}` : message);
+  try {
+    logger.info(meta ? `${message} ${JSON.stringify(meta)}` : message);
+  } catch (error) {
+    console.info(message, meta);
+  }
 };
 
 export const logWarn = (message: string, meta?: any) => {
-  logger.warn(meta ? `${message} ${JSON.stringify(meta)}` : message);
+  try {
+    logger.warn(meta ? `${message} ${JSON.stringify(meta)}` : message);
+  } catch (error) {
+    console.warn(message, meta);
+  }
 };
 
 export const logError = (message: string, error?: any) => {
-  if (error instanceof Error) {
-    logger.error(`${message}: ${error.message}`, { stack: error.stack });
-  } else if (error) {
-    logger.error(`${message}: ${JSON.stringify(error)}`);
-  } else {
-    logger.error(message);
+  try {
+    if (error instanceof Error) {
+      logger.error(`${message}: ${error.message}`, { stack: error.stack });
+    } else if (error) {
+      logger.error(`${message}: ${JSON.stringify(error)}`);
+    } else {
+      logger.error(message);
+    }
+  } catch (loggerError) {
+    // Fallback para console se o logger falhar
+    console.error(message, error);
   }
 };
 
@@ -71,13 +102,13 @@ export const logPerformance = async <T>(
   try {
     const result = await operation();
     const endTime = Date.now();
-    logger.info(`[Performance] ${operationName} concluído em ${endTime - startTime}ms`);
+    logInfo(`[Performance] ${operationName} concluído em ${endTime - startTime}ms`);
     return result;
   } catch (error) {
     const endTime = Date.now();
-    logger.error(
+    logError(
       `[Performance] ${operationName} falhou após ${endTime - startTime}ms`,
-      { error }
+      error
     );
     throw error;
   }

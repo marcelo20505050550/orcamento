@@ -81,13 +81,8 @@ export const GET = withAuth(async (req: NextRequest) => {
  */
 export const POST = withAuth(async (req: NextRequest) => {
   try {
-    // Verifica o cabeçalho de autorização para diagnóstico
-    const authHeader = req.headers.get('authorization');
-    console.log('Cabeçalho de autorização:', authHeader ? 'Presente' : 'Ausente');
-    
     // Parse do corpo da requisição
     const body = await req.json();
-    console.log('Dados recebidos para cadastro de produto:', body);
     
     // Validação dos campos obrigatórios
     if (!body.nome) {
@@ -114,8 +109,6 @@ export const POST = withAuth(async (req: NextRequest) => {
       e_materia_prima: body.e_materia_prima || false
     };
     
-    console.log('Dados formatados para inserção:', produtoData);
-    
     // Insere o produto no banco de dados usando o cliente admin que ignora RLS
     const { data, error } = await supabaseAdmin
       .from('produtos')
@@ -124,7 +117,6 @@ export const POST = withAuth(async (req: NextRequest) => {
       .single();
       
     if (error) {
-      console.error('Erro do Supabase ao inserir produto:', error);
       logError('Erro ao inserir produto', error);
       
       // Verifica se o erro é de chave única violada
@@ -136,12 +128,11 @@ export const POST = withAuth(async (req: NextRequest) => {
       }
       
       return NextResponse.json(
-        { error: `Erro ao cadastrar produto: ${error.message}` },
+        { error: 'Erro ao cadastrar produto' },
         { status: 500 }
       );
     }
     
-    console.log('Produto cadastrado com sucesso:', data);
     logInfo('Produto cadastrado com sucesso', { id: data.id, nome: data.nome });
     
     return NextResponse.json(
@@ -149,13 +140,9 @@ export const POST = withAuth(async (req: NextRequest) => {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Exceção ao cadastrar produto:', error);
     logError('Erro não tratado ao cadastrar produto', error);
     return NextResponse.json(
-      { 
-        error: 'Erro interno ao processar a requisição',
-        message: error instanceof Error ? error.message : 'Erro desconhecido'
-      },
+      { error: 'Erro interno ao processar a requisição' },
       { status: 500 }
     );
   }

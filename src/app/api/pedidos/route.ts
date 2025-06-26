@@ -37,19 +37,24 @@ export const GET = withAuth(async (req: NextRequest) => {
     // Calcula o offset para paginação
     const offset = (page - 1) * pageSize;
     
-    // Constrói a query base
+    // Constrói a query base - usando apenas campos básicos
     let query = supabaseAdmin
       .from('pedidos')
       .select(`
-        *,
-        produto:produtos(*),
-        processos:processos_pedidos(
-          *,
-          processo:processos_fabricacao(*)
-        ),
-        mao_de_obra:mao_de_obra_pedidos(
-          *,
-          mao_de_obra:mao_de_obra(*)
+        id,
+        produto_id,
+        quantidade,
+        status,
+        observacoes,
+        user_id,
+        created_at,
+        updated_at,
+        produto:produtos(
+          id,
+          nome,
+          descricao,
+          preco_unitario,
+          e_materia_prima
         )
       `, { count: 'exact' })
       .eq('user_id', user.id);
@@ -121,34 +126,6 @@ export const POST = withAuth(async (req: NextRequest) => {
       );
     }
     
-    // Validação dos novos campos opcionais
-    const temFrete = Boolean(body.tem_frete);
-    const valorFrete = temFrete ? (body.valor_frete || 0) : 0;
-    const margemLucroPercentual = body.margem_lucro_percentual || 0;
-    const impostosPercentual = body.impostos_percentual || 0;
-    
-    // Validações dos novos campos
-    if (valorFrete < 0) {
-      return NextResponse.json(
-        { error: 'Valor do frete deve ser positivo ou zero' },
-        { status: 400 }
-      );
-    }
-    
-    if (margemLucroPercentual < 0) {
-      return NextResponse.json(
-        { error: 'Margem de lucro deve ser positiva ou zero' },
-        { status: 400 }
-      );
-    }
-    
-    if (impostosPercentual < 0) {
-      return NextResponse.json(
-        { error: 'Impostos devem ser positivos ou zero' },
-        { status: 400 }
-      );
-    }
-    
     // Obtém o usuário atual a partir do token
     const authHeader = req.headers.get('authorization')!;
     const token = authHeader.split(' ')[1];
@@ -191,16 +168,12 @@ export const POST = withAuth(async (req: NextRequest) => {
       );
     }
     
-    // Prepara os dados para inserção
+    // Prepara os dados para inserção - apenas campos básicos
     const pedidoData = {
       produto_id: body.produto_id,
       quantidade: body.quantidade,
       status: StatusPedido.PENDENTE,
       observacoes: body.observacoes || null,
-      tem_frete: temFrete,
-      valor_frete: valorFrete,
-      margem_lucro_percentual: margemLucroPercentual,
-      impostos_percentual: impostosPercentual,
       user_id: user.id
     };
     
