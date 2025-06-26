@@ -14,6 +14,15 @@ import { DependenciaProduto } from '@/types';
  */
 export const GET = withAuth(async (req: NextRequest) => {
   try {
+    // Debug logs for Vercel
+    console.log('🔍 [VERCEL DEBUG] Starting GET /api/dependencias');
+    console.log('🔍 [VERCEL DEBUG] Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: !!process.env.VERCEL,
+      SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    });
+    
     // Obtém parâmetros de query da URL
     const url = new URL(req.url);
     const produtoPaiId = url.searchParams.get('produtoPaiId');
@@ -21,10 +30,13 @@ export const GET = withAuth(async (req: NextRequest) => {
     const page = parseInt(url.searchParams.get('page') || '1');
     const pageSize = parseInt(url.searchParams.get('pageSize') || '10');
     
+    console.log('🔍 [VERCEL DEBUG] Query params:', { produtoPaiId, produtoFilhoId, page, pageSize });
+    
     // Calcula o offset para paginação
     const offset = (page - 1) * pageSize;
     
     // Constrói a query base
+    console.log('🔍 [VERCEL DEBUG] Building Supabase query...');
     let query = supabaseAdmin
       .from('dependencias_produtos')
       .select(`
@@ -35,17 +47,27 @@ export const GET = withAuth(async (req: NextRequest) => {
     
     // Aplica filtros conforme parâmetros
     if (produtoPaiId) {
+      console.log('🔍 [VERCEL DEBUG] Applying produtoPaiId filter:', produtoPaiId);
       query = query.eq('produto_pai_id', produtoPaiId);
     }
     
     if (produtoFilhoId) {
+      console.log('🔍 [VERCEL DEBUG] Applying produtoFilhoId filter:', produtoFilhoId);
       query = query.eq('produto_filho_id', produtoFilhoId);
     }
     
     // Aplica paginação e executa a query
+    console.log('🔍 [VERCEL DEBUG] Executing query with pagination:', { offset, pageSize });
     const { data, error, count } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + pageSize - 1);
+      
+    console.log('🔍 [VERCEL DEBUG] Query result:', { 
+      dataLength: data?.length || 0, 
+      count, 
+      hasError: !!error,
+      errorMessage: error?.message || 'no error'
+    });
       
     if (error) {
       logError('Erro ao listar dependências de produtos', error);
@@ -72,9 +94,17 @@ export const GET = withAuth(async (req: NextRequest) => {
       }
     });
   } catch (error) {
+    console.error('🚨 [VERCEL DEBUG] Caught exception in GET /api/dependencias:', error);
+    console.error('🚨 [VERCEL DEBUG] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    });
     logError('Erro não tratado ao listar dependências', error);
     return NextResponse.json(
-      { error: 'Erro interno ao processar a requisição' },
+      { 
+        error: 'Erro interno ao processar a requisição',
+        debug: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
