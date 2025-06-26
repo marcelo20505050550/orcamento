@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import logger from '@/utils/logger'
-import { withAuth } from '@/utils/auth'
+import { withAuth } from '../../../middleware'
 
 // Função para validar dados de item extra
 function validarItemExtra(data: any) {
@@ -66,10 +66,10 @@ async function verificarItemExtraDoUsuario(itemExtraId: string, userId: string) 
 }
 
 // GET - Obter detalhes de um item extra específico
-export async function GET(
+export const GET = withAuth(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id: itemExtraId } = await params
     
@@ -111,7 +111,7 @@ export async function GET(
     logger.error('Erro interno ao buscar item extra:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
-}
+})
 
 // PUT - Atualizar um item extra
 export const PUT = withAuth(async (

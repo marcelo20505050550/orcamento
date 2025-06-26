@@ -3,18 +3,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { loginWithEmail } from '@/lib/supabase/auth';
-import { errorHandlerMiddleware } from '../../middleware';
 import { logError, logInfo } from '@/utils/logger';
 
-async function handler(req: NextRequest) {
-  // Verifica se a requisição é do tipo POST
-  if (req.method !== 'POST') {
-    return NextResponse.json(
-      { error: 'Método não permitido' },
-      { status: 405 }
-    );
-  }
-
+/**
+ * POST /api/auth/login
+ * Endpoint público para autenticação de usuários
+ */
+export async function POST(req: NextRequest) {
   try {
     // Extrai credenciais do corpo da requisição
     const { email, password } = await req.json();
@@ -52,7 +47,4 @@ async function handler(req: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Exporta o handler com o middleware de tratamento de erros
-export const POST = errorHandlerMiddleware(handler); 
+} 

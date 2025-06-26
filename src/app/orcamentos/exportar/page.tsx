@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useReactToPrint } from 'react-to-print'
@@ -110,7 +110,7 @@ const formatDate = (dateString: string) => {
   }).format(date)
 }
 
-export default function ExportarOrcamentoPage() {
+function ExportarOrcamentoContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pedidoId = searchParams.get('pedido')
@@ -727,5 +727,17 @@ export default function ExportarOrcamentoPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ExportarOrcamentoPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-4 flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <ExportarOrcamentoContent />
+    </Suspense>
   )
 } 

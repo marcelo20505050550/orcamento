@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
@@ -50,7 +50,7 @@ type Orcamento = {
   detalhes_itens_extras: ItemExtraPedido[]
 }
 
-export default function OrcamentosPage() {
+function OrcamentosContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pedidoId = searchParams.get('pedido')
@@ -525,5 +525,17 @@ export default function OrcamentosPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function OrcamentosPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-4 flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <OrcamentosContent />
+    </Suspense>
   )
 } 
