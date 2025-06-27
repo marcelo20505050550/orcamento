@@ -12,9 +12,18 @@ const logError = (message: string, error: any) => {
 // Função para verificar se o usuário está autenticado
 export async function authMiddleware(req: NextRequest) {
   try {
+    console.log('🔐 [AUTH] Starting authentication middleware for:', req.url);
+    
     // Verifica variáveis de ambiente
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    console.log('🔐 [AUTH] Environment check:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      nodeEnv: process.env.NODE_ENV,
+      vercel: process.env.VERCEL
+    });
     
     if (!supabaseUrl || !supabaseKey) {
       console.error('Missing Supabase environment variables');
@@ -35,7 +44,14 @@ export async function authMiddleware(req: NextRequest) {
     // Obtém o token do cabeçalho de autorização
     const authHeader = req.headers.get('authorization');
     
+    console.log('🔐 [AUTH] Authorization header check:', {
+      hasHeader: !!authHeader,
+      startsWithBearer: authHeader?.startsWith('Bearer '),
+      headerLength: authHeader?.length || 0
+    });
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('🔐 [AUTH] Missing or invalid authorization header');
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },
         { status: 401 }
@@ -45,7 +61,14 @@ export async function authMiddleware(req: NextRequest) {
     // Extrai e verifica o token
     const token = authHeader.split(' ')[1];
     
-    if (!token) {
+    console.log('🔐 [AUTH] Token extraction:', {
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+      tokenPrefix: token?.substring(0, 10) + '...' || 'empty'
+    });
+    
+    if (!token || token.trim() === '') {
+      console.error('🔐 [AUTH] Empty or invalid token');
       return NextResponse.json(
         { error: 'Token de autenticação vazio' },
         { status: 401 }
@@ -56,6 +79,13 @@ export async function authMiddleware(req: NextRequest) {
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data.user) {
+      console.error('🔐 [AUTH] Token verification failed:', {
+        hasError: !!error,
+        errorMessage: error?.message,
+        hasUser: !!data?.user,
+        tokenLength: token?.length || 0
+      });
+      
       return NextResponse.json(
         { 
           error: 'Token de autenticação inválido ou expirado'
@@ -63,6 +93,8 @@ export async function authMiddleware(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    console.log('🔐 [AUTH] Token verification successful for user:', data.user.id);
 
     // O usuário está autenticado, continua para o próximo handler
     return null;

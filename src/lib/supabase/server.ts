@@ -4,10 +4,25 @@
  */
 import { createClient } from '@supabase/supabase-js';
 
+// Verifica se as variáveis de ambiente necessárias estão disponíveis
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('🚨 [SUPABASE-SERVER] Missing required environment variables:', {
+    hasUrl: !!supabaseUrl,
+    hasServiceKey: !!supabaseServiceKey,
+    nodeEnv: process.env.NODE_ENV
+  });
+  throw new Error('Missing Supabase environment variables');
+}
+
+console.log('✅ [SUPABASE-SERVER] Environment variables loaded successfully');
+
 // Cria um cliente Supabase com a service role key (apenas para uso no servidor)
 export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  supabaseUrl,
+  supabaseServiceKey,
   {
     auth: {
       persistSession: false,
