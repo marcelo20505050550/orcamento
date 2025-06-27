@@ -14,6 +14,7 @@ const logFormat = printf(({ level, message, timestamp }) => {
 });
 
 // Cria a instância do logger com configurações personalizadas
+// No Vercel, usamos apenas console pois o sistema de arquivos é somente leitura
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: combine(
@@ -21,7 +22,7 @@ const logger = winston.createLogger({
     logFormat
   ),
   transports: [
-    // Logs no console para desenvolvimento
+    // Logs no console (funciona tanto em desenvolvimento quanto em produção/Vercel)
     new transports.Console({
       format: combine(
         colorize(),
@@ -29,8 +30,9 @@ const logger = winston.createLogger({
         logFormat
       ),
     }),
-    // Logs em arquivo para produção
-    ...(process.env.NODE_ENV === 'production'
+    // Logs em arquivo apenas para desenvolvimento local
+    // No Vercel (produção), não tentamos escrever arquivos pois o FS é read-only
+    ...(process.env.NODE_ENV === 'production' && !process.env.VERCEL
       ? [
           new transports.File({ filename: 'logs/error.log', level: 'error' }),
           new transports.File({ filename: 'logs/combined.log' }),
