@@ -46,10 +46,13 @@ export const GET = withAuth(async (req: NextRequest) => {
     // Calcula o offset para paginação
     const offset = (page - 1) * pageSize;
     
-    // Query simplificada primeiro
+    // Query com join para incluir dados do produto
     let query = supabaseAdmin
       .from('pedidos')
-      .select('*', { count: 'exact' });
+      .select(`
+        *,
+        produto:produtos(id, nome)
+      `, { count: 'exact' });
     
     // Aplica filtros se fornecidos
     if (status) {
