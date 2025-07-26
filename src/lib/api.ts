@@ -26,7 +26,12 @@ export async function fetchApi<T = any>(
   // Adiciona o token de autenticação se necessário
   if (options.requireAuth !== false) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError.message);
+      }
+      
       const token = session?.access_token;
       
       if (token) {
@@ -35,6 +40,7 @@ export async function fetchApi<T = any>(
         throw new Error('Autenticação necessária para acessar este recurso');
       }
     } catch (error) {
+      console.error('Auth error:', error);
       if (options.requireAuth) {
         throw new Error('Falha na autenticação');
       }

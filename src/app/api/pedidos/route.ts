@@ -9,6 +9,23 @@ import { withAuth } from '../middleware';
 import { logError, logInfo } from '@/utils/logger';
 import { StatusPedido } from '@/types';
 
+// Helper function para obter usuário do token
+async function getUserFromToken(req: NextRequest) {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    throw new Error('Token de autenticação não fornecido');
+  }
+
+  const token = authHeader.split(' ')[1];
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  
+  if (userError || !user) {
+    throw new Error('Erro ao identificar o usuário');
+  }
+
+  return user;
+}
+
 /**
  * GET /api/pedidos
  * Lista todos os pedidos do usuário atual (US-013)
@@ -23,13 +40,12 @@ export const GET = withAuth(async (req: NextRequest) => {
     const produtoId = url.searchParams.get('produto_id');
     
     // Obtém o usuário atual a partir do token
-    const authHeader = req.headers.get('authorization')!;
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
+    try {
+      const user = await getUserFromToken(req);
+      logInfo(`Listando pedidos para usuário ${user.id}`);
+    } catch (authError) {
       return NextResponse.json(
-        { error: 'Erro ao identificar o usuário' },
+        { error: authError.message },
         { status: 401 }
       );
     }
@@ -134,13 +150,12 @@ export const POST = withAuth(async (req: NextRequest) => {
     }
     
     // Obtém o usuário atual a partir do token
-    const authHeader = req.headers.get('authorization')!;
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
+    let user;
+    try {
+      user = await getUserFromToken(req);
+    } catch (authError) {
       return NextResponse.json(
-        { error: 'Erro ao identificar o usuário' },
+        { error: authError.message },
         { status: 401 }
       );
     }
@@ -199,8 +214,8 @@ export const POST = withAuth(async (req: NextRequest) => {
             nome: 'Produto Personalizado',
             descricao: 'Produto criado automaticamente para pedidos sem produto específico',
             preco_unitario: 0,
-            quantidade_estoque: 0,
-            e_materia_prima: false
+            e_materia_prima: false,
+            tipo_produto: 'simples'
           })
           .select('id, nome, e_materia_prima')
           .single();
