@@ -10,6 +10,7 @@ export interface Produto {
   preco_unitario: number;
   quantidade_estoque: number;
   e_materia_prima: boolean;
+  margem_lucro_percentual?: number;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,7 @@ export interface ProcessoFabricacao {
   nome: string;
   preco_por_unidade: number;
   tempo_estimado_minutos: number;
+  unidade_medida?: 'horas' | 'quilos';
   created_at: string;
   updated_at: string;
 }
@@ -58,22 +60,24 @@ export enum StatusPedido {
 // Tipo para pedido
 export interface Pedido {
   id: string;
-  produto_id: string;
+  produto_id?: string;
+  cliente_id?: string;
   quantidade: number;
   status: StatusPedido;
   observacoes?: string;
   user_id: string;
   tem_frete: boolean;
   valor_frete: number;
-  margem_lucro_percentual: number;
-  impostos_percentual: number;
   created_at: string;
   updated_at: string;
   
   // Relacionamentos opcionais que podem ser carregados
   produto?: Produto;
+  cliente?: Cliente;
   processos?: ProcessoPedido[];
   mao_de_obra?: MaoDeObraPedido[];
+  observacoes_pedido?: ObservacaoPedido[];
+  impostos?: ImpostoPedido[];
 }
 
 // Tipo para associação entre pedido e processo
@@ -185,17 +189,14 @@ export interface OrcamentoCompleto {
   custo_total_mao_de_obra: number;
   custo_total_itens_extras: number;
   valor_frete: number;
-  subtotal: number; // materiais + processos + mão de obra + itens extras + frete
-  margem_lucro_percentual: number;
-  valor_margem_lucro: number;
-  total_com_margem: number; // subtotal + margem
-  impostos_percentual: number;
+  subtotal: number; // materiais + processos + mão de obra + itens extras + frete (com margem individual dos produtos)
   valor_impostos: number;
   custo_total: number; // total final com impostos
   detalhes_materiais: MateriaPrimaNecessaria[];
   detalhes_processos: ProcessoOrcamento[];
   detalhes_mao_de_obra: MaoDeObraOrcamento[];
   detalhes_itens_extras: ItemExtraPedido[];
+  detalhes_impostos: ImpostoPedido[];
 }
 
 // Tipo para itens extras de pedidos
@@ -205,6 +206,54 @@ export interface ItemExtraPedido {
   nome: string;
   descricao?: string;
   valor: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Enumeração para status do orçamento do cliente
+export enum StatusOrcamentoCliente {
+  ABERTO = 'aberto',
+  PEDIDO_CONFIRMADO = 'pedido_confirmado',
+  CANCELADO = 'cancelado'
+}
+
+// Tipo para cliente
+export interface Cliente {
+  id: string;
+  nome_cliente_empresa: string;
+  cnpj_cpf?: string;
+  nome_responsavel: string;
+  telefone_whatsapp: string;
+  email?: string;
+  endereco?: string;
+  bairro?: string;
+  cidade: string;
+  estado_uf: string;
+  cep?: string;
+  tipo_interesse?: string;
+  descricao_demanda?: string;
+  origem_contato?: string;
+  status_orcamento: StatusOrcamentoCliente;
+  data_cancelamento_automatico?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Tipo para observações de pedidos
+export interface ObservacaoPedido {
+  id: string;
+  pedido_id: string;
+  observacao: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Tipo para impostos de pedidos
+export interface ImpostoPedido {
+  id: string;
+  pedido_id: string;
+  tipo_imposto: string;
+  percentual: number;
   created_at: string;
   updated_at: string;
 } 

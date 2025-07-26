@@ -4,47 +4,32 @@ import { useState, useEffect, use } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { ItemExtraPedido } from '@/types'
+import { Cliente, Produto } from '@/types'
+import TaxasPedido from '@/components/TaxasPedido'
+import ResumoPedido from '@/components/ResumoPedido'
 
 type PedidoDetalhes = {
   id: string
-  produto: {
-    id: string
-    nome: string
-    descricao: string
-    preco_unitario: number
-  }
+  cliente_id: string
   quantidade: number
   status: 'pendente' | 'em_producao' | 'finalizado' | 'cancelado'
-  observacoes: string
+  observacoes?: string
   tem_frete: boolean
   valor_frete: number
-  margem_lucro_percentual: number
-  impostos_percentual: number
   created_at: string
   updated_at: string
-  processos: Array<{
+  cliente?: Cliente
+  produtos_pedido?: Array<{
     id: string
-    processo_id: string
+    produto_id: string
     quantidade: number
-    processo: {
+    produto: {
       id: string
       nome: string
-      preco_por_unidade: number
-      tempo_estimado_minutos: number
+      preco_unitario: number
+      custo_total?: number
     }
   }>
-  mao_de_obra: Array<{
-    id: string
-    mao_de_obra_id: string
-    horas: number
-    mao_de_obra: {
-      id: string
-      tipo: string
-      preco_por_hora: number
-    }
-  }>
-  itens_extras?: ItemExtraPedido[]
 }
 
 export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,323 +37,346 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
   const searchParams = useSearchParams()
   const isNewOrder = searchParams.get('novo') === 'true'
   const pedidoId = use(params).id
+
   const [pedido, setPedido] = useState<PedidoDetalhes | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [statusUpdating, setStatusUpdating] = useState(false)
-  
+
+  // Estados para produtos
+  const [produtos, setProdutos] = useState<Produto[]>([])
+  const [fetchingProdutos, setFetchingProdutos] = useState(false)
+  const [produtosSelecionados, setProdutosSelecionados] = useState<{ id: string, nome: string, custoTotal: number, quantidade: number }[]>([])
+  const [produtosComPrecoFinal, setProdutosComPrecoFinal] = useState<{ id: string, nome: string, precoFinal: number }[]>([])
+
+  // Estados para observações
+  const [observacoes, setObservacoes] = useState<string[]>([])
+  const [novaObservacao, setNovaObservacao] = useState('')
+  const [editandoObservacao, setEditandoObservacao] = useState<number | null>(null)
+  const [observacaoEditada, setObservacaoEditada] = useState('')
+  const [salvandoObservacoes, setSalvandoObservacoes] = useState(false)
+
+  // Estados para edição
+  const [editando, setEditando] = useState(false)
+  const [formData, setFormData] = useState({
+    quantidade: '1'
+  })
+
   useEffect(() => {
     const fetchPedido = async () => {
       setLoading(true)
       try {
         // Buscar detalhes do pedido
         const response = await api.get(`/api/pedidos/${pedidoId}`)
-        
         if (response.error) {
           throw new Error(response.error || 'Erro ao carregar detalhes do pedido')
         }
-        
-        // Buscar itens extras do pedido
-        const itensExtrasResponse = await api.get(`/api/pedidos/${pedidoId}/itens-extras`)
-        const itensExtras = itensExtrasResponse.error ? [] : itensExtrasResponse.data
-        
-        // Combinar os dados
-        setPedido({
-          ...response.data,
-          itens_extras: itensExtras
+
+        const pedidoData = response.data
+        setPedido(pedidoData)
+
+        // Configurar dados do formulário
+        setFormData({
+          quantidade: pedidoData.quantidade?.toString() || '1'
         })
+
+        // Configurar observações
+        if (pedidoData.observacoes) {
+          setObservacoes(pedidoData.observacoes.split('\n').filter((obs: string) => obs.trim()))
+        }
+
+        // Buscar produtos do pedido
+        try {
+          const produtosPedidoResponse = await api.get(`/api/pedidos/${pedidoId}/produtos`)
+
+          // A resposta vem diretamente como array da API
+          const produtosPedido = Array.isArray(produtosPedidoResponse) ? produtosPedidoResponse : []
+
+          // Converter produtos do pedido para o formato esperado
+          const produtosArray = Array.isArray(produtosPedido) ? produtosPedido : []
+
+          const produtosFormatados = await Promise.all(
+            produtosArray.map(async (item: any) => {
+              try {
+                // Verificar se o item tem a estrutura esperada
+                if (!item || !item.produto || !item.produto.id) {
+                  console.warn('Item de produto com estrutura inválida:', item)
+                  return null
+                }
+
+                const custoResponse = await api.get(`/api/produtos/${item.produto.id}/custo-com-margem`)
+                const custoTotal = custoResponse.custo_com_margem || item.produto.preco_unitario || 0
+
+                return {
+                  id: item.produto.id,
+                  nome: item.produto.nome,
+                  custoTotal: custoTotal,
+                  quantidade: item.quantidade
+                }
+              } catch (error) {
+                console.error('Erro ao processar produto:', error)
+                if (!item || !item.produto) return null
+
+                return {
+                  id: item.produto.id,
+                  nome: item.produto.nome,
+                  custoTotal: item.produto.preco_unitario || 0,
+                  quantidade: item.quantidade
+                }
+              }
+            })
+          )
+
+          // Filtrar produtos nulos e definir no estado
+          const produtosValidos = produtosFormatados.filter(produto => produto !== null)
+          setProdutosSelecionados(produtosValidos)
+        } catch (err) {
+          console.error('=== ERRO AO CARREGAR PRODUTOS ===');
+          console.error('Erro ao carregar produtos do pedido:', err)
+        }
+
       } catch (err) {
-        console.error('Erro ao buscar detalhes do pedido:', err)
-        setError(err instanceof Error ? err.message : 'Ocorreu um erro ao carregar os detalhes do pedido')
+        console.error('Erro ao buscar pedido:', err)
+        setError(err instanceof Error ? err.message : 'Erro ao carregar pedido')
       } finally {
         setLoading(false)
       }
     }
 
-    if (pedidoId) {
-      fetchPedido()
+    const fetchProdutos = async () => {
+      setFetchingProdutos(true)
+      try {
+        const response = await api.get('/api/produtos?pageSize=1000')
+        const produtosData = response.data?.data || response.data || []
+        setProdutos(produtosData)
+
+        // Buscar preço final de cada produto
+        const produtosComPreco = await Promise.all(
+          produtosData.map(async (produto: any) => {
+            try {
+              const precoResponse = await api.get(`/api/produtos/${produto.id}/custo-com-margem`)
+              return {
+                id: produto.id,
+                nome: produto.nome,
+                precoFinal: precoResponse.custo_com_margem || produto.preco_unitario || 0
+              }
+            } catch (error) {
+              console.error(`Erro ao buscar preço final do produto ${produto.id}:`, error)
+              return {
+                id: produto.id,
+                nome: produto.nome,
+                precoFinal: produto.preco_unitario || 0
+              }
+            }
+          })
+        )
+        setProdutosComPrecoFinal(produtosComPreco)
+      } catch (err) {
+        console.error('Erro ao buscar produtos:', err)
+      } finally {
+        setFetchingProdutos(false)
+      }
     }
+
+    fetchPedido()
+    fetchProdutos()
   }, [pedidoId])
 
-  const handleStatusUpdate = async (newStatus: string) => {
-    if (!pedido) return
-    
-    setStatusUpdating(true)
-    try {
-      const response = await api.put(`/api/pedidos/${pedido.id}`, {
-        status: newStatus
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+
+    if (name === 'quantidade') {
+      const formattedValue = value.replace(/\D/g, '')
+      setFormData({
+        ...formData,
+        [name]: formattedValue
       })
-      
-      if (response.error) {
-        throw new Error(response.error || 'Erro ao atualizar status do pedido')
-      }
-      
-      // Atualiza o pedido com os novos dados
-      setPedido({
-        ...pedido,
-        status: response.data.status,
-        updated_at: response.data.updated_at
-      })
-    } catch (err) {
-      console.error('Erro ao atualizar status:', err)
-      setError(err instanceof Error ? err.message : 'Ocorreu um erro ao atualizar o status do pedido')
-    } finally {
-      setStatusUpdating(false)
-    }
-  }
-
-  // Traduz status para português e retorna a classe CSS correspondente
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case 'pendente':
-        return {
-          text: 'Pendente',
-          className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
-        }
-      case 'em_producao':
-        return {
-          text: 'Em Produção',
-          className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
-        }
-      case 'finalizado':
-        return {
-          text: 'Finalizado',
-          className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
-        }
-      case 'cancelado':
-        return {
-          text: 'Cancelado',
-          className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
-        }
-      default:
-        return {
-          text: status,
-          className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-        }
-    }
-  }
-
-  // Formata data para o formato brasileiro
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date)
-  }
-
-  // Formata valores monetários para o formato brasileiro
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value)
-  }
-
-  // Calcula o custo total dos processos
-  const calcularCustoProcessos = () => {
-    if (!pedido || !pedido.processos.length) return 0
-    
-    return pedido.processos.reduce((total, item) => {
-      return total + (item.processo.preco_por_unidade * item.quantidade)
-    }, 0)
-  }
-
-  // Calcula o custo total da mão de obra
-  const calcularCustoMaoDeObra = () => {
-    if (!pedido || !pedido.mao_de_obra.length) return 0
-    
-    return pedido.mao_de_obra.reduce((total, item) => {
-      return total + (item.mao_de_obra.preco_por_hora * item.horas)
-    }, 0)
-  }
-
-  // Calcula o custo total dos itens extras
-  const calcularCustoItensExtras = () => {
-    if (!pedido || !pedido.itens_extras || !pedido.itens_extras.length) return 0
-    
-    return pedido.itens_extras.reduce((total, item) => {
-      return total + item.valor
-    }, 0)
-  }
-
-  // Calcula o tempo total estimado em minutos
-  const calcularTempoTotal = () => {
-    if (!pedido || !pedido.processos.length) return 0
-    
-    return pedido.processos.reduce((total, item) => {
-      return total + (item.processo.tempo_estimado_minutos * item.quantidade)
-    }, 0)
-  }
-
-  // Formata tempo em minutos para horas e minutos
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    
-    if (hours === 0) {
-      return `${mins} minutos`
-    } else if (mins === 0) {
-      return `${hours} ${hours === 1 ? 'hora' : 'horas'}`
     } else {
-      return `${hours} ${hours === 1 ? 'hora' : 'horas'} e ${mins} minutos`
-    }
-  }
-
-  // Calcula o subtotal (materiais + processos + mão de obra + itens extras + frete)
-  const calcularSubtotal = () => {
-    const custoMaterial = pedido ? pedido.produto.preco_unitario * pedido.quantidade : 0
-    const custoProcessos = calcularCustoProcessos()
-    const custoMaoDeObra = calcularCustoMaoDeObra()
-    const custoItensExtras = calcularCustoItensExtras()
-    const valorFrete = pedido?.tem_frete ? (pedido.valor_frete || 0) : 0
-    
-    return custoMaterial + custoProcessos + custoMaoDeObra + custoItensExtras + valorFrete
-  }
-
-  // Calcula o valor da margem de lucro
-  const calcularValorMargem = () => {
-    if (!pedido) return 0
-    const subtotal = calcularSubtotal()
-    const margemPercentual = pedido.margem_lucro_percentual
-    
-    if (margemPercentual > 0) {
-      const totalComMargem = subtotal / ((100 - margemPercentual) / 100)
-      return totalComMargem - subtotal
-    }
-    return 0
-  }
-
-  // Calcula o total com margem (subtotal + margem)
-  const calcularTotalComMargem = () => {
-    if (!pedido) return 0
-    const subtotal = calcularSubtotal()
-    const margemPercentual = pedido.margem_lucro_percentual
-    
-    if (margemPercentual > 0) {
-      return subtotal / ((100 - margemPercentual) / 100)
-    }
-    return subtotal
-  }
-
-  // Calcula o valor dos impostos
-  const calcularValorImpostos = () => {
-    if (!pedido) return 0
-    const totalComMargem = calcularTotalComMargem()
-    const impostosPercentual = pedido.impostos_percentual
-    
-    if (impostosPercentual > 0) {
-      const totalFinal = totalComMargem / ((100 - impostosPercentual) / 100)
-      return totalFinal - totalComMargem
-    }
-    return 0
-  }
-
-  // Calcula o total final (com impostos)
-  const calcularTotalFinal = () => {
-    if (!pedido) return 0
-    const totalComMargem = calcularTotalComMargem()
-    const impostosPercentual = pedido.impostos_percentual
-    
-    if (impostosPercentual > 0) {
-      return totalComMargem / ((100 - impostosPercentual) / 100)
-    }
-    return totalComMargem
-  }
-
-  // Estados para edição dos novos campos
-  const [editandoFrete, setEditandoFrete] = useState(false)
-  const [editandoMargem, setEditandoMargem] = useState(false)
-  const [editandoImpostos, setEditandoImpostos] = useState(false)
-  const [salvandoAlteracoes, setSalvandoAlteracoes] = useState(false)
-
-  // Função para atualizar frete
-  const handleFreteUpdate = async (temFrete: boolean, valorFrete: number) => {
-    if (!pedido) return
-    
-    setSalvandoAlteracoes(true)
-    try {
-      const response = await api.put(`/api/pedidos/${pedido.id}`, {
-        tem_frete: temFrete,
-        valor_frete: valorFrete
+      setFormData({
+        ...formData,
+        [name]: value
       })
-      
-      if (response.error) {
-        throw new Error(response.error || 'Erro ao atualizar frete')
+    }
+  }
+
+  const adicionarObservacao = () => {
+    if (novaObservacao.trim()) {
+      setObservacoes([...observacoes, novaObservacao.trim()])
+      setNovaObservacao('')
+    }
+  }
+
+  const editarObservacao = (index: number) => {
+    setEditandoObservacao(index)
+    setObservacaoEditada(observacoes[index])
+  }
+
+  const salvarEdicaoObservacao = () => {
+    if (editandoObservacao !== null && observacaoEditada.trim()) {
+      const novasObservacoes = [...observacoes]
+      novasObservacoes[editandoObservacao] = observacaoEditada.trim()
+      setObservacoes(novasObservacoes)
+      setEditandoObservacao(null)
+      setObservacaoEditada('')
+    }
+  }
+
+  const cancelarEdicaoObservacao = () => {
+    setEditandoObservacao(null)
+    setObservacaoEditada('')
+  }
+
+  const excluirObservacao = (index: number) => {
+    setObservacoes(observacoes.filter((_, i) => i !== index))
+  }
+
+  const adicionarProduto = async (produtoId: string) => {
+    const produto = produtos.find(p => p.id === produtoId)
+    if (produto && !produtosSelecionados.find(p => p.id === produtoId)) {
+      try {
+        // Busca o custo com margem do produto
+        const response = await api.get(`/api/produtos/${produtoId}/custo-com-margem`)
+        const custoTotal = response.custo_com_margem || produto.preco_unitario || 0
+
+        const novoProduto = {
+          id: produto.id,
+          nome: produto.nome,
+          custoTotal: custoTotal,
+          quantidade: 1
+        }
+
+        setProdutosSelecionados([...produtosSelecionados, novoProduto])
+
+        // Adicionar produto ao pedido via API
+        try {
+          await api.post(`/api/pedidos/${pedidoId}/produtos`, {
+            produto_id: produto.id,
+            quantidade: 1
+          })
+        } catch (apiError) {
+          console.error('Erro ao adicionar produto via API:', apiError)
+        }
+
+      } catch (error) {
+        console.error('Erro ao buscar custo com margem do produto:', error)
+        const custoTotal = produto.preco_unitario || 0
+        const novoProduto = {
+          id: produto.id,
+          nome: produto.nome,
+          custoTotal: custoTotal,
+          quantidade: 1
+        }
+        setProdutosSelecionados([...produtosSelecionados, novoProduto])
       }
-      
-      setPedido({
-        ...pedido,
-        tem_frete: response.data.tem_frete,
-        valor_frete: response.data.valor_frete,
-        updated_at: response.data.updated_at
-      })
-      setEditandoFrete(false)
-    } catch (err) {
-      console.error('Erro ao atualizar frete:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar frete')
-    } finally {
-      setSalvandoAlteracoes(false)
     }
   }
 
-  // Função para atualizar margem de lucro
-  const handleMargemUpdate = async (margemPercentual: number) => {
-    if (!pedido) return
-    
-    setSalvandoAlteracoes(true)
+  const removerProduto = async (produtoId: string) => {
+    // Encontrar o produto no pedido para obter o ID da relação
+    const produtoParaRemover = produtosSelecionados.find(p => p.id === produtoId)
+    if (!produtoParaRemover) return
+
+    // Remover da interface
+    setProdutosSelecionados(produtosSelecionados.filter(p => p.id !== produtoId))
+
+    // Remover via API (precisa encontrar o ID da relação produtos_pedidos)
     try {
-      const response = await api.put(`/api/pedidos/${pedido.id}`, {
-        margem_lucro_percentual: margemPercentual
-      })
-      
-      if (response.error) {
-        throw new Error(response.error || 'Erro ao atualizar margem de lucro')
+      const produtosPedidoResponse = await api.get(`/api/pedidos/${pedidoId}/produtos`)
+      const produtosPedido = Array.isArray(produtosPedidoResponse) ? produtosPedidoResponse : []
+      const produtoPedido = produtosPedido.find((item: any) => item.produto.id === produtoId)
+
+      if (produtoPedido) {
+        console.log('Removendo produto via API:', produtoPedido.id);
+        await api.delete(`/api/pedidos/produtos/${produtoPedido.id}`)
+        console.log('Produto removido com sucesso');
+      } else {
+        console.warn('Produto não encontrado para remoção:', produtoId);
       }
-      
-      setPedido({
-        ...pedido,
-        margem_lucro_percentual: response.data.margem_lucro_percentual,
-        updated_at: response.data.updated_at
-      })
-      setEditandoMargem(false)
-    } catch (err) {
-      console.error('Erro ao atualizar margem:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar margem de lucro')
-    } finally {
-      setSalvandoAlteracoes(false)
+    } catch (error) {
+      console.error('Erro ao remover produto via API:', error)
     }
   }
 
-  // Função para atualizar impostos
-  const handleImpostosUpdate = async (impostosPercentual: number) => {
-    if (!pedido) return
-    
-    setSalvandoAlteracoes(true)
+  const atualizarQuantidadeProduto = async (produtoId: string, novaQuantidade: number) => {
+    if (novaQuantidade <= 0) return
+
+    setProdutosSelecionados(produtosSelecionados.map(produto =>
+      produto.id === produtoId
+        ? { ...produto, quantidade: novaQuantidade }
+        : produto
+    ))
+
+    // Atualizar via API
     try {
-      const response = await api.put(`/api/pedidos/${pedido.id}`, {
-        impostos_percentual: impostosPercentual
-      })
-      
-      if (response.error) {
-        throw new Error(response.error || 'Erro ao atualizar impostos')
+      const produtosPedidoResponse = await api.get(`/api/pedidos/${pedidoId}/produtos`)
+      const produtosPedido = Array.isArray(produtosPedidoResponse) ? produtosPedidoResponse : []
+      const produtoPedido = produtosPedido.find((item: any) => item.produto.id === produtoId)
+
+      if (produtoPedido) {
+        console.log('Atualizando quantidade do produto:', produtoId, 'para:', novaQuantidade);
+        // Remover o produto atual
+        await api.delete(`/api/pedidos/produtos/${produtoPedido.id}`)
+        // Adicionar novamente com a nova quantidade
+        await api.post(`/api/pedidos/${pedidoId}/produtos`, {
+          produto_id: produtoId,
+          quantidade: novaQuantidade
+        })
+        console.log('Quantidade atualizada com sucesso');
+      } else {
+        console.warn('Produto não encontrado para atualização:', produtoId);
       }
-      
-      setPedido({
-        ...pedido,
-        impostos_percentual: response.data.impostos_percentual,
-        updated_at: response.data.updated_at
-      })
-      setEditandoImpostos(false)
-    } catch (err) {
-      console.error('Erro ao atualizar impostos:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar impostos')
-    } finally {
-      setSalvandoAlteracoes(false)
+    } catch (error) {
+      console.error('Erro ao atualizar quantidade via API:', error)
     }
+  }
+
+  const recarregarPedido = async () => {
+    try {
+      const response = await api.get(`/api/pedidos/${pedidoId}`)
+      if (!response.error) {
+        setPedido(response.data)
+      }
+    } catch (error) {
+      console.error('Erro ao recarregar pedido:', error)
+    }
+  }
+
+  const salvarAlteracoes = async () => {
+    setSalvandoObservacoes(true)
+    try {
+      // Atualizar dados básicos do pedido
+      await api.put(`/api/pedidos/${pedidoId}`, {
+        quantidade: parseInt(formData.quantidade),
+        observacoes: observacoes.join('\n') || null
+      })
+
+      setEditando(false)
+
+      // Recarregar dados do pedido
+      await recarregarPedido()
+
+    } catch (error) {
+      console.error('Erro ao salvar alterações:', error)
+      setError('Erro ao salvar alterações')
+    } finally {
+      setSalvandoObservacoes(false)
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      'pendente': { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200', text: 'Pendente' },
+      'em_producao': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200', text: 'Em Produção' },
+      'finalizado': { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200', text: 'Finalizado' },
+      'cancelado': { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200', text: 'Cancelado' }
+    }
+
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pendente
+
+    return (
+      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${config.color}`}>
+        {config.text}
+      </span>
+    )
   }
 
   if (loading) {
@@ -379,814 +387,492 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
     )
   }
 
-  if (error) {
+  if (error || !pedido) {
     return (
       <div className="p-4">
         <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-md">
           <h2 className="text-red-800 dark:text-red-200 font-medium">Erro</h2>
           <p className="text-red-700 dark:text-red-300 mt-1">{error}</p>
-          <button 
-            onClick={() => router.push('/pedidos')}
-            className="mt-3 text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded"
-          >
-            Voltar aos Pedidos
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!pedido) {
-    return (
-      <div className="p-4">
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md">
-          <h2 className="text-yellow-800 dark:text-yellow-200 font-medium">Pedido não encontrado</h2>
-          <p className="text-yellow-700 dark:text-yellow-300 mt-1">
-            O pedido solicitado não foi encontrado ou você não tem permissão para acessá-lo.
-          </p>
-          <button 
-            onClick={() => router.push('/pedidos')}
-            className="mt-3 text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded"
-          >
-            Voltar aos Pedidos
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const statusInfo = getStatusInfo(pedido.status)
-  const custoProcessos = calcularCustoProcessos()
-  const custoMaoDeObra = calcularCustoMaoDeObra()
-  const custoItensExtras = calcularCustoItensExtras()
-  const tempoTotal = calcularTempoTotal()
-
-  return (
-    <div className="space-y-6" suppressHydrationWarning>
-      {/* Mensagem de boas-vindas para novo pedido */}
-      {isNewOrder && (
-        <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg shadow">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1 md:flex md:justify-between">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Pedido criado com sucesso! Para completar o orçamento, adicione processos de fabricação e mão de obra.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-3 md:mt-0 md:ml-6">
-                <Link 
-                  href={`/pedidos/${pedido?.id}/processos`}
-                  className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:text-blue-600 dark:hover:text-blue-200 whitespace-nowrap"
-                >
-                  Adicionar Processos <span aria-hidden="true">&rarr;</span>
-                </Link>
-                <Link 
-                  href={`/pedidos/${pedido?.id}/mao-de-obra`}
-                  className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:text-blue-600 dark:hover:text-blue-200 whitespace-nowrap"
-                >
-                  Adicionar Mão de Obra <span aria-hidden="true">&rarr;</span>
-                </Link>
-                <Link 
-                  href={`/pedidos/${pedido?.id}/itens-extras`}
-                  className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:text-blue-600 dark:hover:text-blue-200 whitespace-nowrap"
-                >
-                  Adicionar Itens Extras <span aria-hidden="true">&rarr;</span>
-                </Link>
-              </div>
-            </div>
+          <div className="mt-3 space-x-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="text-sm text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
+            >
+              Tentar novamente
+            </button>
+            <Link
+              href="/pedidos"
+              className="text-sm text-red-600 hover:text-red-700 underline"
+            >
+              Voltar para pedidos
+            </Link>
           </div>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {/* Cabeçalho e ações */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  return (
+    <div className="space-y-6">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-            Detalhes do Pedido
-          </h1>
+          <nav className="flex" aria-label="Breadcrumb">
+            <ol className="flex items-center space-x-4">
+              <li>
+                <Link href="/pedidos" className="text-gray-400 hover:text-gray-500">
+                  Pedidos
+                </Link>
+              </li>
+              <li>
+                <div className="flex items-center">
+                  <svg className="flex-shrink-0 h-5 w-5 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M5.555 17.776l8-16 .894.448-8 16-.894-.448z" />
+                  </svg>
+                  <span className="ml-4 text-sm font-medium text-gray-900 dark:text-white">
+                    Pedido #{pedido.id.slice(-8)}
+                  </span>
+                </div>
+              </li>
+            </ol>
+          </nav>
+          <div className="mt-2 flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+              Pedido #{pedido.id.slice(-8)}
+            </h1>
+            {getStatusBadge(pedido.status)}
+            {isNewOrder && (
+              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                Novo
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Pedido #{pedido.id.substring(0, 8)} - {formatDate(pedido.created_at)}
+            Criado em {new Date(pedido.created_at).toLocaleDateString('pt-BR')}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-3">
+          <Link
+            href={`/pedidos/${pedidoId}/exportar-orcamento`}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          >
+            <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar Orçamento
+          </Link>
+          {!editando ? (
+            <button
+              onClick={() => setEditando(true)}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Editar
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setEditando(false)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarAlteracoes}
+                disabled={salvandoObservacoes}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {salvandoObservacoes ? 'Salvando...' : 'Salvar'}
+              </button>
+            </>
+          )}
           <Link
             href="/pedidos"
-            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-700 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Voltar
           </Link>
-          <Link
-            href={`/orcamentos?pedido_id=${pedido.id}`}
-            className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
-            Gerar Orçamento
-          </Link>
         </div>
       </div>
 
-      {/* Informações gerais */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Informações do Pedido</h2>
-        </div>
-        <div className="p-6">
-          <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Produto</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">{pedido.produto.nome}</dd>
+      {error && (
+        <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
             </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Quantidade</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">{pedido.quantidade} unidades</dd>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Erro</h3>
+              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                <p>{error}</p>
+              </div>
             </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
-              <dd className="mt-1">
-                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.className}`}>
-                  {statusInfo.text}
-                </span>
-              </dd>
-            </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Preço Unitário</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                {formatCurrency(pedido.produto.preco_unitario)}
-              </dd>
-            </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">{formatDate(pedido.created_at)}</dd>
-            </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Última Atualização</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">{formatDate(pedido.updated_at)}</dd>
-            </div>
-
-            <div className="sm:col-span-2 lg:col-span-3">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Observações</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                {pedido.observacoes || "Nenhuma observação"}
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </div>
-
-      {/* Ações de status */}
-      {pedido.status !== 'finalizado' && pedido.status !== 'cancelado' && (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Atualizar Status</h2>
-          </div>
-          <div className="p-6 flex flex-wrap gap-2">
-            {pedido.status === 'pendente' && (
-              <>
-                <button
-                  onClick={() => handleStatusUpdate('em_producao')}
-                  disabled={statusUpdating}
-                  className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {statusUpdating ? 'Atualizando...' : 'Iniciar Produção'}
-                </button>
-                <button
-                  onClick={() => handleStatusUpdate('cancelado')}
-                  disabled={statusUpdating}
-                  className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {statusUpdating ? 'Atualizando...' : 'Cancelar Pedido'}
-                </button>
-              </>
-            )}
-            
-            {pedido.status === 'em_producao' && (
-              <>
-                <button
-                  onClick={() => handleStatusUpdate('finalizado')}
-                  disabled={statusUpdating}
-                  className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {statusUpdating ? 'Atualizando...' : 'Finalizar Produção'}
-                </button>
-                <button
-                  onClick={() => handleStatusUpdate('cancelado')}
-                  disabled={statusUpdating}
-                  className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {statusUpdating ? 'Atualizando...' : 'Cancelar Pedido'}
-                </button>
-              </>
-            )}
           </div>
         </div>
       )}
 
-      {/* Processos de Fabricação */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Processos de Fabricação</h2>
-          <Link
-            href={`/pedidos/${pedido.id}/processos`}
-            className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            {pedido.processos && pedido.processos.length > 0 ? 'Gerenciar Processos' : 'Adicionar Processos'}
-          </Link>
-        </div>
-        
-        {pedido.processos && pedido.processos.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Processo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Quantidade
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Preço por Hora
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tempo Estimado (horas)
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Subtotal
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {pedido.processos.map((processo) => (
-                  <tr key={processo.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {processo.processo.nome}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {processo.quantidade}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatCurrency(processo.processo.preco_por_unidade)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatTime(processo.processo.tempo_estimado_minutos)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatCurrency(processo.processo.preco_por_unidade * processo.quantidade)}
-                    </td>
-                  </tr>
-                ))}
-                <tr className="bg-gray-50 dark:bg-gray-700">
-                  <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white text-right">
-                    Total:
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(custoProcessos)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-6">
-            <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Nenhum processo adicionado</h3>
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  Este pedido não possui processos de fabricação associados. Adicione processos para calcular custos de produção.
-                </p>
-              </div>
-              <Link
-                href={`/pedidos/${pedido.id}/processos`}
-                className="flex-shrink-0 inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Adicionar Agora
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Mão de Obra */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Mão de Obra</h2>
-          <Link
-            href={`/pedidos/${pedido.id}/mao-de-obra`}
-            className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            {pedido.mao_de_obra && pedido.mao_de_obra.length > 0 ? 'Gerenciar Mão de Obra' : 'Adicionar Mão de Obra'}
-          </Link>
-        </div>
-        
-        {pedido.mao_de_obra && pedido.mao_de_obra.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tipo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Horas
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Preço por Hora
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Subtotal
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {pedido.mao_de_obra.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {item.mao_de_obra.tipo}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {item.horas.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatCurrency(item.mao_de_obra.preco_por_hora)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatCurrency(item.mao_de_obra.preco_por_hora * item.horas)}
-                    </td>
-                  </tr>
-                ))}
-                <tr className="bg-gray-50 dark:bg-gray-700">
-                  <td colSpan={3} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white text-right">
-                    Total:
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(custoMaoDeObra)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-6">
-            <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Nenhuma mão de obra adicionada</h3>
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  Este pedido não possui mão de obra associada. Adicione mão de obra para calcular custos de produção.
-                </p>
-              </div>
-              <Link
-                href={`/pedidos/${pedido.id}/mao-de-obra`}
-                className="flex-shrink-0 inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Adicionar Agora
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Itens Extras */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Itens Extras</h2>
-          <Link
-            href={`/pedidos/${pedido.id}/itens-extras`}
-            className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            {pedido.itens_extras && pedido.itens_extras.length > 0 ? 'Gerenciar Itens Extras' : 'Adicionar Itens Extras'}
-          </Link>
-        </div>
-        
-        {pedido.itens_extras && pedido.itens_extras.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Descrição
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Valor
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Data de Criação
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {pedido.itens_extras.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {item.nome}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                      {item.descricao || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatCurrency(item.valor)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {formatDate(item.created_at)}
-                    </td>
-                  </tr>
-                ))}
-                <tr className="bg-gray-50 dark:bg-gray-700">
-                  <td colSpan={3} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white text-right">
-                    Total:
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(custoItensExtras)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-6">
-            <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Nenhum item extra adicionado</h3>
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  Este pedido não possui itens extras. Adicione itens como taxas de urgência, materiais especiais ou serviços adicionais.
-                </p>
-              </div>
-              <Link
-                href={`/pedidos/${pedido.id}/itens-extras`}
-                className="flex-shrink-0 inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Adicionar Agora
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Configurações de Frete, Margem e Impostos */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Configurações de Orçamento</h2>
-        </div>
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
         <div className="p-6 space-y-6">
-          {/* Seção de Frete */}
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Frete</h3>
-              <button
-                onClick={() => setEditandoFrete(!editandoFrete)}
-                className="text-sm text-blue-600 hover:text-blue-500"
-                disabled={salvandoAlteracoes}
-              >
-                {editandoFrete ? 'Cancelar' : 'Editar'}
-              </button>
+          {/* Informações básicas do pedido */}
+          <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Quantidade
+              </label>
+              <div className="mt-1">
+                {editando ? (
+                  <input
+                    type="text"
+                    name="quantidade"
+                    value={formData.quantidade}
+                    onChange={handleChange}
+                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-900 dark:text-white">{pedido.quantidade}</p>
+                )}
+              </div>
             </div>
-            
-            {editandoFrete ? (
-              <FreteForm
-                temFrete={pedido.tem_frete}
-                valorFrete={pedido.valor_frete}
-                onSave={handleFreteUpdate}
-                onCancel={() => setEditandoFrete(false)}
-                loading={salvandoAlteracoes}
-              />
+          </div>
+
+          {/* Seção de Produtos */}
+          <div className="sm:col-span-6">
+            <div className="flex justify-between items-center mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Produtos
+              </label>
+              {editando && (
+                <div className="flex gap-2">
+                  <select
+                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                    onChange={async (e) => {
+                      if (e.target.value) {
+                        await adicionarProduto(e.target.value)
+                        e.target.value = ''
+                      }
+                    }}
+                  >
+                    <option value="">Adicionar produto</option>
+                    {produtosComPrecoFinal
+                      .filter(produto => !produtosSelecionados.find(p => p.id === produto.id))
+                      .map(produto => (
+                        <option key={produto.id} value={produto.id}>
+                          {produto.nome} - R$ {produto.precoFinal.toFixed(2)}
+                        </option>
+                      ))}
+                  </select>
+                  <Link
+                    href="/produtos/novo"
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Novo Produto
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Lista de produtos */}
+            {produtosSelecionados.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Produtos do Pedido:</h4>
+                  <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Total: R$ {produtosSelecionados.reduce((total, produto) => total + (produto.custoTotal * produto.quantidade), 0).toFixed(2)}
+                  </p>
+                </div>
+                {produtosSelecionados.map((produto) => (
+                  <div key={produto.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{produto.nome}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Preço Final do Produto: R$ {produto.custoTotal.toFixed(2)}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Subtotal: R$ {(produto.custoTotal * produto.quantidade).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {editando ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <label className="text-sm text-gray-600 dark:text-gray-400">Qtd:</label>
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => atualizarQuantidadeProduto(produto.id, produto.quantidade - 1)}
+                                className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                disabled={produto.quantidade <= 1}
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={produto.quantidade}
+                                onChange={(e) => {
+                                  const valor = parseInt(e.target.value) || 1
+                                  atualizarQuantidadeProduto(produto.id, valor)
+                                }}
+                                className="w-16 h-8 text-center text-sm border-t border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => atualizarQuantidadeProduto(produto.id, produto.quantidade + 1)}
+                                className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-r-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removerProduto(produto.id)}
+                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                          >
+                            Remover
+                          </button>
+                        </>
+                      ) : (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Qtd: {produto.quantidade}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="mt-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {pedido.tem_frete ? (
-                    <>Tem frete: <span className="font-medium">{formatCurrency(pedido.valor_frete)}</span></>
-                  ) : (
-                    'Sem frete'
-                  )}
-                </p>
+              <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-md">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum produto adicionado ao pedido</p>
+                {editando && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Use o seletor acima para adicionar produtos
+                  </p>
+                )}
               </div>
             )}
           </div>
 
-          {/* Seção de Margem de Lucro */}
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Margem de Lucro</h3>
-              <button
-                onClick={() => setEditandoMargem(!editandoMargem)}
-                className="text-sm text-blue-600 hover:text-blue-500"
-                disabled={salvandoAlteracoes}
-              >
-                {editandoMargem ? 'Cancelar' : 'Editar'}
-              </button>
-            </div>
-            
-            {editandoMargem ? (
-              <MargemForm
-                margemPercentual={pedido.margem_lucro_percentual}
-                onSave={handleMargemUpdate}
-                onCancel={() => setEditandoMargem(false)}
-                loading={salvandoAlteracoes}
-              />
-            ) : (
-              <div className="mt-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {pedido.margem_lucro_percentual}% ({formatCurrency(calcularValorMargem())})
-                </p>
+          {/* Seção de Observações */}
+          <div className="sm:col-span-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Observações
+            </label>
+
+            {/* Lista de observações existentes */}
+            {observacoes.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {observacoes.map((obs, index) => (
+                  <div key={index} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                    {editandoObservacao === index ? (
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="text"
+                          value={observacaoEditada}
+                          onChange={(e) => setObservacaoEditada(e.target.value)}
+                          className="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded-md"
+                          onKeyDown={(e) => e.key === 'Enter' && salvarEdicaoObservacao()}
+                        />
+                        <button
+                          type="button"
+                          onClick={salvarEdicaoObservacao}
+                          className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelarEdicaoObservacao}
+                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="flex-1 text-sm text-gray-900 dark:text-white">{obs}</span>
+                        {editando && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => editarObservacao(index)}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => excluirObservacao(index)}
+                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
-          </div>
 
-          {/* Seção de Impostos */}
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Impostos</h3>
-              <button
-                onClick={() => setEditandoImpostos(!editandoImpostos)}
-                className="text-sm text-blue-600 hover:text-blue-500"
-                disabled={salvandoAlteracoes}
-              >
-                {editandoImpostos ? 'Cancelar' : 'Editar'}
-              </button>
-            </div>
-            
-            {editandoImpostos ? (
-              <ImpostosForm
-                impostosPercentual={pedido.impostos_percentual}
-                onSave={handleImpostosUpdate}
-                onCancel={() => setEditandoImpostos(false)}
-                loading={salvandoAlteracoes}
-              />
-            ) : (
-              <div className="mt-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {pedido.impostos_percentual}% ({formatCurrency(calcularValorImpostos())})
-                </p>
+            {/* Campo para adicionar nova observação */}
+            {editando && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={novaObservacao}
+                  onChange={(e) => setNovaObservacao(e.target.value)}
+                  placeholder="Digite uma observação..."
+                  className="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), adicionarObservacao())}
+                />
+                <button
+                  type="button"
+                  onClick={adicionarObservacao}
+                  className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Adicionar
+                </button>
               </div>
+            )}
+
+            {observacoes.length === 0 && !editando && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                Nenhuma observação adicionada
+              </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Resumo de custos */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Resumo de Custos</h2>
-        </div>
+      {/* Seção de Taxas */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
         <div className="p-6">
-          <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Custo dos Materiais</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(pedido.produto.preco_unitario * pedido.quantidade)}
-              </dd>
-            </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Custo dos Processos</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(custoProcessos)}
-              </dd>
-            </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Custo da Mão de Obra</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(custoMaoDeObra)}
-              </dd>
-            </div>
-            
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Custo dos Itens Extras</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(custoItensExtras)}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Frete</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(pedido.tem_frete ? pedido.valor_frete : 0)}
-              </dd>
-            </div>
-            
-            <div className="sm:col-span-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Subtotal</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(calcularSubtotal())}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Margem de Lucro ({pedido.margem_lucro_percentual}%)</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(calcularValorMargem())}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Total com Margem</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(calcularTotalComMargem())}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Impostos ({pedido.impostos_percentual}%)</dt>
-              <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatCurrency(calcularValorImpostos())}
-              </dd>
-            </div>
-            
-            <div className="sm:col-span-2 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Final</dt>
-              <dd className="mt-1 text-3xl font-bold text-gray-900 dark:text-white">
-                {formatCurrency(calcularTotalFinal())}
-              </dd>
-            </div>
-          </dl>
+          <TaxasPedido
+            pedidoId={pedidoId}
+            valorFreteAtual={pedido.valor_frete}
+            editando={editando}
+            onTaxasChange={recarregarPedido}
+          />
         </div>
       </div>
+
+      {/* Seção de Resumo */}
+      <ResumoPedido
+        pedidoId={pedidoId}
+        produtosSelecionados={produtosSelecionados}
+        valorFrete={pedido.valor_frete}
+      />
+
+      {/* Informações do Cliente */}
+      {pedido.cliente && (
+        <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+          <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">Informações do Cliente</h3>
+          <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Cliente/Empresa</p>
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                {pedido.cliente.nome_cliente_empresa}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Responsável</p>
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                {pedido.cliente.nome_responsavel}
+              </p>
+            </div>
+            {pedido.cliente.cnpj_cpf && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">CNPJ/CPF</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.cnpj_cpf}
+                </p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Telefone/WhatsApp</p>
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                {pedido.cliente.telefone_whatsapp}
+              </p>
+            </div>
+            {pedido.cliente.email && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">E-mail</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.email}
+                </p>
+              </div>
+            )}
+            {pedido.cliente.endereco && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">Endereço</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.endereco}
+                </p>
+              </div>
+            )}
+            {pedido.cliente.bairro && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">Bairro</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.bairro}
+                </p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Cidade/Estado</p>
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                {pedido.cliente.cidade}, {pedido.cliente.estado_uf}
+              </p>
+            </div>
+            {pedido.cliente.cep && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">CEP</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.cep}
+                </p>
+              </div>
+            )}
+            {pedido.cliente.tipo_interesse && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">Tipo de Interesse</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.tipo_interesse}
+                </p>
+              </div>
+            )}
+            {pedido.cliente.origem_contato && (
+              <div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">Origem do Contato</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.origem_contato}
+                </p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Status do Orçamento</p>
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                {pedido.cliente.status_orcamento === 'aberto' ? 'Aberto' :
+                  pedido.cliente.status_orcamento === 'pedido_confirmado' ? 'Pedido Confirmado' :
+                    'Cancelado'}
+              </p>
+            </div>
+            {pedido.cliente.descricao_demanda && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <p className="text-xs text-blue-700 dark:text-blue-300">Descrição da Demanda</p>
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  {pedido.cliente.descricao_demanda}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
-// Componente para editar frete
-function FreteForm({ temFrete, valorFrete, onSave, onCancel, loading }: {
-  temFrete: boolean
-  valorFrete: number
-  onSave: (temFrete: boolean, valorFrete: number) => void
-  onCancel: () => void
-  loading: boolean
-}) {
-  const [formTemFrete, setFormTemFrete] = useState(temFrete)
-  const [formValorFrete, setFormValorFrete] = useState(valorFrete.toString())
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const valor = parseFloat(formValorFrete) || 0
-    onSave(formTemFrete, valor)
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-      <div>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={formTemFrete}
-            onChange={(e) => setFormTemFrete(e.target.checked)}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Tem frete</span>
-        </label>
-      </div>
-      
-      {formTemFrete && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Valor do Frete
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={formValorFrete}
-            onChange={(e) => setFormValorFrete(e.target.value)}
-            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            placeholder="0,00"
-          />
-        </div>
-      )}
-      
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? 'Salvando...' : 'Salvar'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-2 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
-        >
-          Cancelar
-        </button>
-      </div>
-    </form>
-  )
-}
-
-// Componente para editar margem de lucro
-function MargemForm({ margemPercentual, onSave, onCancel, loading }: {
-  margemPercentual: number
-  onSave: (margemPercentual: number) => void
-  onCancel: () => void
-  loading: boolean
-}) {
-  const [formMargem, setFormMargem] = useState(margemPercentual.toString())
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const margem = parseFloat(formMargem) || 0
-    onSave(margem)
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Margem de Lucro (%)
-        </label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          max="100"
-          value={formMargem}
-          onChange={(e) => setFormMargem(e.target.value)}
-          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          placeholder="0,00"
-        />
-      </div>
-      
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? 'Salvando...' : 'Salvar'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-2 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
-        >
-          Cancelar
-        </button>
-      </div>
-    </form>
-  )
-}
-
-// Componente para editar impostos
-function ImpostosForm({ impostosPercentual, onSave, onCancel, loading }: {
-  impostosPercentual: number
-  onSave: (impostosPercentual: number) => void
-  onCancel: () => void
-  loading: boolean
-}) {
-  const [formImpostos, setFormImpostos] = useState(impostosPercentual.toString())
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const impostos = parseFloat(formImpostos) || 0
-    onSave(impostos)
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Impostos (%)
-        </label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          max="100"
-          value={formImpostos}
-          onChange={(e) => setFormImpostos(e.target.value)}
-          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          placeholder="0,00"
-        />
-      </div>
-      
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? 'Salvando...' : 'Salvar'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-2 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
-        >
-          Cancelar
-        </button>
-      </div>
-    </form>
-  )
-} 

@@ -121,22 +121,48 @@ export const PUT = withAuth(async (
       );
     }
     
-    if (body.quantidade_estoque !== undefined && body.quantidade_estoque < 0) {
+    if (body.quantidade_necessaria !== undefined && body.quantidade_necessaria < 0) {
       return NextResponse.json(
-        { error: 'Quantidade em estoque deve ser um valor positivo' },
+        { error: 'Quantidade necessária deve ser um valor positivo' },
         { status: 400 }
       );
     }
     
+    if (body.margem_lucro_percentual !== undefined && body.margem_lucro_percentual < 0) {
+      return NextResponse.json(
+        { error: 'Margem de lucro deve ser um valor positivo ou zero' },
+        { status: 400 }
+      );
+    }
+    
+    // Validação específica para produtos simples
+    if (body.tipo_produto === 'simples') {
+      if (!body.preco_unitario || body.preco_unitario <= 0) {
+        return NextResponse.json(
+          { error: 'Preço unitário é obrigatório e deve ser maior que zero para produtos simples' },
+          { status: 400 }
+        );
+      }
+      if (!body.quantidade_necessaria || body.quantidade_necessaria <= 0) {
+        return NextResponse.json(
+          { error: 'Quantidade necessária é obrigatória e deve ser maior que zero para produtos simples' },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Prepara os dados para atualização
-    const updateData: Partial<Produto> = {};
+    const updateData: any = {};
     
     // Inclui apenas os campos que foram fornecidos
     if (body.nome !== undefined) updateData.nome = body.nome;
+    if (body.codigo_produto !== undefined) updateData.codigo_produto = body.codigo_produto;
     if (body.descricao !== undefined) updateData.descricao = body.descricao;
     if (body.preco_unitario !== undefined) updateData.preco_unitario = body.preco_unitario;
-    if (body.quantidade_estoque !== undefined) updateData.quantidade_estoque = body.quantidade_estoque;
+    if (body.quantidade_necessaria !== undefined) updateData.quantidade_necessaria = body.quantidade_necessaria;
     if (body.e_materia_prima !== undefined) updateData.e_materia_prima = body.e_materia_prima;
+    if (body.tipo_produto !== undefined) updateData.tipo_produto = body.tipo_produto;
+    if (body.margem_lucro_percentual !== undefined) updateData.margem_lucro_percentual = body.margem_lucro_percentual;
     
     // Atualiza o produto no banco de dados
     const { data, error } = await supabaseAdmin

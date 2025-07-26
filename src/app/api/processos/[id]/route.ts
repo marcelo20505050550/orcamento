@@ -164,6 +164,7 @@ export const PUT = withAuth(async (
     if (body.nome !== undefined) updateData.nome = body.nome;
     if (body.preco_por_unidade !== undefined) updateData.preco_por_unidade = body.preco_por_unidade;
     if (body.tempo_estimado_minutos !== undefined) updateData.tempo_estimado_minutos = body.tempo_estimado_minutos;
+    if (body.unidade_medida !== undefined) updateData.unidade_medida = body.unidade_medida;
     
     // Verifica se há dados para atualizar
     if (Object.keys(updateData).length === 0) {

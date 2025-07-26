@@ -55,7 +55,7 @@ export default function NovaMaoDeObraPage() {
       }
 
       // Envia os dados para a API
-      const response = await api.post('/mao-de-obra', maoDeObraData)
+      const response = await api.post('/api/mao-de-obra', maoDeObraData)
 
       if (!response.data) {
         throw new Error('Erro ao cadastrar mão de obra')

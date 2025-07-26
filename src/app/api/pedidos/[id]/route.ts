@@ -89,6 +89,7 @@ export const GET = withAuth(async (
       .select(`
         *,
         produto:produtos(*),
+        cliente:clientes(*),
         processos:processos_pedidos(
           *,
           processo:processos_fabricacao(*)
@@ -197,6 +198,7 @@ export const PUT = withAuth(async (
     // Prepara os dados para atualização
     const updateData: Partial<{
       status: StatusPedido;
+      quantidade: number;
       observacoes: string;
       tem_frete: boolean;
       valor_frete: number;
@@ -214,6 +216,17 @@ export const PUT = withAuth(async (
         );
       }
       updateData.status = body.status;
+    }
+    
+    // Atualização de quantidade (se fornecido)
+    if (body.quantidade !== undefined) {
+      if (body.quantidade <= 0) {
+        return NextResponse.json(
+          { error: 'Quantidade deve ser maior que zero' },
+          { status: 400 }
+        );
+      }
+      updateData.quantidade = body.quantidade;
     }
     
     // Atualização de observações (se fornecido)

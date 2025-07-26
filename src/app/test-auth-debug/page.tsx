@@ -33,7 +33,7 @@ export default function TestAuthDebug() {
     try {
       // Teste 1: Usar a função api.get (deveria funcionar se logado)
       console.log('🧪 Testing with api.get...');
-      const result1 = await api.get('/test-protected-route');
+      const result1 = await api.get('/api/test-protected-route');
       setTestResults(prev => ({
         ...prev,
         apiGet: { success: true, data: result1 }
@@ -109,7 +109,7 @@ export default function TestAuthDebug() {
       // Teste das outras APIs que estavam dando erro 500
       const tests = [
         { name: 'produtos', endpoint: '/produtos' },
-        { name: 'dependencias', endpoint: '/dependencias' },
+        { name: 'produtos', endpoint: '/produtos' },
         { name: 'processos', endpoint: '/processos' },
         { name: 'mao-de-obra', endpoint: '/mao-de-obra' }
       ];
@@ -227,8 +227,8 @@ export default function TestAuthDebug() {
           <a href="/api/produtos-test" target="_blank" className="block text-blue-600 hover:underline">
             /api/produtos-test
           </a>
-          <a href="/api/dependencias-test-enhanced" target="_blank" className="block text-blue-600 hover:underline">
-            /api/dependencias-test-enhanced
+          <a href="/api/produtos-test" target="_blank" className="block text-blue-600 hover:underline">
+            /api/produtos-test
           </a>
         </div>
       </div>

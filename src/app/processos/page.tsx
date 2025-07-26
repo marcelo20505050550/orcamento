@@ -26,7 +26,7 @@ export default function ProcessosPage() {
     const fetchProcessos = async () => {
       setLoading(true)
       try {
-        const response = await api.get('/processos')
+        const response = await api.get('/api/processos')
         setProcessos(response.data || [])
       } catch (err) {
         console.error('Erro ao buscar processos:', err)

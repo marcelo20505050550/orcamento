@@ -347,56 +347,7 @@ Este documento serve como repositório central para documentação de todos os e
 
 ---
 
-### `GET /api/dependencias`
-
-* **Purpose:** Listar todas as dependências entre produtos (US-002).
-* **Authentication:** Requer token JWT no cabeçalho Authorization.
-* **Request Parameters (URL/Query):**
-  * `page` (number): Página atual para paginação (opcional, padrão: 1).
-  * `pageSize` (number): Tamanho da página para paginação (opcional, padrão: 10).
-  * `produtoPaiId` (uuid): Filtrar por produto pai específico (opcional).
-  * `produtoFilhoId` (uuid): Filtrar por produto filho específico (opcional).
-* **Success Response (200 OK):**
-  ```json
-  {
-    "data": [
-      {
-        "id": "uuid",
-        "produto_pai_id": "uuid",
-        "produto_filho_id": "uuid",
-        "quantidade_necessaria": "number",
-        "created_at": "timestamp",
-        "updated_at": "timestamp",
-        "produto_pai": {
-          "id": "uuid",
-          "nome": "string",
-          "preco_unitario": "number",
-          "e_materia_prima": "boolean"
-        },
-        "produto_filho": {
-          "id": "uuid",
-          "nome": "string",
-          "preco_unitario": "number",
-          "e_materia_prima": "boolean"
-        }
-      }
-    ],
-    "pagination": {
-      "total": "number",
-      "page": "number",
-      "pageSize": "number",
-      "totalPages": "number"
-    }
-  }
-  ```
-* **Error Responses:**
-  * `401 Unauthorized`: Token de autenticação não fornecido ou inválido.
-  * `500 Internal Server Error`: Erro ao processar a requisição.
-* **Notes:** Os resultados são ordenados por data de criação (mais recentes primeiro) e paginados conforme parâmetros.
-
----
-
-### `POST /api/dependencias`
+### `POST /api/produtos/[id]/dependencias`
 
 * **Purpose:** Cadastrar uma nova dependência entre produtos (US-002).
 * **Authentication:** Requer token JWT no cabeçalho Authorization.

@@ -2,34 +2,64 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 
-type Produto = {
+interface ProdutoHierarquia {
   id: string
   nome: string
+  codigo_produto?: string
   descricao: string
-  preco_unitario: number
-  estoque: number
-  materia_prima: boolean
+  preco_unitario?: number
+  quantidade_necessaria?: number
+  e_materia_prima: boolean
+  tipo_produto: 'simples' | 'calculo'
   created_at: string
+  updated_at: string
+  nivel: number
+  dependencias: ProdutoHierarquia[]
+  expanded?: boolean
 }
 
 export default function ProdutosPage() {
-  const [produtos, setProdutos] = useState<Produto[]>([])
+  const router = useRouter()
+  const [produtos, setProdutos] = useState<ProdutoHierarquia[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterMateriaPrima, setFilterMateriaPrima] = useState<boolean | null>(null)
-  const [produtoParaExcluir, setProdutoParaExcluir] = useState<Produto | null>(null)
+  const [produtoParaExcluir, setProdutoParaExcluir] = useState<ProdutoHierarquia | null>(null)
   const [excluindo, setExcluindo] = useState(false)
-  const [mensagemFeedback, setMensagemFeedback] = useState<{tipo: 'sucesso' | 'erro', texto: string} | null>(null)
+  const [mensagemFeedback, setMensagemFeedback] = useState<{ tipo: 'sucesso' | 'erro', texto: string } | null>(null)
 
+  // Carregar apenas produtos principais (que não são componentes de outros)
   useEffect(() => {
     const fetchProdutos = async () => {
       setLoading(true)
       try {
-        const response = await api.get('/produtos')
-        setProdutos(response.data || [])
+        // Buscar todos os produtos
+        const todosResponse = await api.get('/api/produtos?pageSize=1000')
+        const todosProdutos = todosResponse.data?.data || todosResponse.data || []
+        
+        // Buscar todas as dependências para identificar quais produtos são componentes
+        const dependenciasResponse = await api.get('/api/dependencias-produtos')
+        const dependencias = dependenciasResponse.data?.data || dependenciasResponse.data || []
+        
+        // IDs dos produtos que são componentes (filhos) de outros produtos
+        const idsComponentes = new Set(dependencias.map((dep: any) => dep.produto_filho_id))
+        
+        // Filtrar apenas produtos principais (que não são componentes)
+        const produtosPrincipais = todosProdutos.filter((produto: any) => !idsComponentes.has(produto.id))
+        
+        // Inicializar produtos com estado de expansão
+        const produtosComEstado = produtosPrincipais.map((produto: any) => ({
+          ...produto,
+          nivel: 0,
+          dependencias: [],
+          expanded: false
+        }))
+        
+        setProdutos(produtosComEstado)
+        
+
       } catch (err) {
         console.error('Erro ao buscar produtos:', err)
         setError('Não foi possível carregar os produtos. Tente novamente mais tarde.')
@@ -41,64 +71,143 @@ export default function ProdutosPage() {
     fetchProdutos()
   }, [])
 
-  // Filtrar produtos com base na busca e no filtro de matéria-prima
-  const filteredProdutos = produtos.filter(produto => {
-    const matchesSearchTerm = produto.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            produto.descricao.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    if (filterMateriaPrima === null) return matchesSearchTerm
-    return matchesSearchTerm && produto.materia_prima === filterMateriaPrima
-  })
+  // Função recursiva para atualizar produtos na árvore
+  const atualizarProdutoRecursivo = (produtos: ProdutoHierarquia[], produtoId: string, updates: Partial<ProdutoHierarquia>): ProdutoHierarquia[] => {
+    return produtos.map(produto => {
+      if (produto.id === produtoId) {
+        return { ...produto, ...updates }
+      }
+      if (produto.dependencias && produto.dependencias.length > 0) {
+        return {
+          ...produto,
+          dependencias: atualizarProdutoRecursivo(produto.dependencias, produtoId, updates)
+        }
+      }
+      return produto
+    })
+  }
 
-  // Função para abrir o modal de confirmação de exclusão
-  const confirmarExclusao = (produto: Produto) => {
-    console.log('Função confirmarExclusao chamada para produto:', produto.nome)
+  // Função para expandir/colapsar produto e carregar dependências
+  const toggleExpansao = async (produtoId: string) => {
+    // Encontrar o produto na árvore (pode estar em qualquer nível)
+    const encontrarProduto = (produtos: ProdutoHierarquia[]): ProdutoHierarquia | null => {
+      for (const produto of produtos) {
+        if (produto.id === produtoId) return produto
+        if (produto.dependencias) {
+          const encontrado = encontrarProduto(produto.dependencias)
+          if (encontrado) return encontrado
+        }
+      }
+      return null
+    }
+
+    const produto = encontrarProduto(produtos)
+    if (!produto) return
+
+    if (produto.expanded) {
+      // Colapsar
+      setProdutos(prevProdutos => 
+        atualizarProdutoRecursivo(prevProdutos, produtoId, { expanded: false })
+      )
+    } else {
+      // Expandir - carregar dependências
+      try {
+        const response = await api.get(`/api/produtos/${produtoId}/arvore-dependencias`)
+        
+        // O response já contém os dados diretamente, não em .data
+        const responseData = response.data || response
+        const arvore = responseData?.dependencias || []
+        
+        // Converter dependências para o formato hierárquico
+        const dependenciasHierarquicas = arvore.map((dep: any) => {
+          return {
+            id: dep.id,
+            nome: dep.nome,
+            descricao: '',
+            preco_unitario: dep.preco_unitario,
+            quantidade_estoque: 0,
+            e_materia_prima: dep.e_materia_prima,
+            created_at: '',
+            updated_at: '',
+            nivel: dep.nivel,
+            quantidade_necessaria: dep.quantidade_necessaria,
+            dependencias: dep.dependencias || [],
+            expanded: false
+          }
+        })
+        
+        setProdutos(prevProdutos => {
+          const novoProdutos = atualizarProdutoRecursivo(prevProdutos, produtoId, { 
+            expanded: true, 
+            dependencias: dependenciasHierarquicas 
+          })
+          
+
+          
+          return novoProdutos
+        })
+      } catch (err) {
+        console.error('Erro ao carregar dependências:', err)
+        setMensagemFeedback({
+          tipo: 'erro',
+          texto: 'Erro ao carregar dependências do produto'
+        })
+      }
+    }
+  }
+
+  // Função para confirmar exclusão
+  const confirmarExclusao = (produto: ProdutoHierarquia) => {
     setProdutoParaExcluir(produto)
   }
 
-  // Função para fechar o modal de confirmação
+  // Função para cancelar exclusão
   const cancelarExclusao = () => {
-    console.log('Função cancelarExclusao chamada')
     setProdutoParaExcluir(null)
   }
 
   // Função para excluir o produto
   const excluirProduto = async () => {
-    console.log('Função excluirProduto chamada')
-    if (!produtoParaExcluir) {
-      console.log('Nenhum produto para excluir')
-      return
-    }
+    if (!produtoParaExcluir) return
 
-    console.log('Iniciando exclusão do produto', produtoParaExcluir.id)
     setExcluindo(true)
     try {
-      console.log('Enviando requisição DELETE para', `/api/produtos/${produtoParaExcluir.id}`)
       await api.delete(`/api/produtos/${produtoParaExcluir.id}`)
+
+      // Recarregar produtos após exclusão
+      const todosResponse = await api.get('/api/produtos?pageSize=1000')
+      const todosProdutos = todosResponse.data?.data || todosResponse.data || []
       
-      // Atualiza a lista de produtos removendo o produto excluído
-      setProdutos(produtos.filter(p => p.id !== produtoParaExcluir.id))
+      const dependenciasResponse = await api.get('/api/dependencias-produtos')
+      const dependencias = dependenciasResponse.data?.data || dependenciasResponse.data || []
       
-      // Mostra mensagem de sucesso
+      const idsComponentes = new Set(dependencias.map((dep: any) => dep.produto_filho_id))
+      const produtosPrincipais = todosProdutos.filter((produto: any) => !idsComponentes.has(produto.id))
+      
+      const produtosComEstado = produtosPrincipais.map((produto: any) => ({
+        ...produto,
+        nivel: 0,
+        dependencias: [],
+        expanded: false
+      }))
+      
+      setProdutos(produtosComEstado)
+
       setMensagemFeedback({
         tipo: 'sucesso',
         texto: `Produto "${produtoParaExcluir.nome}" excluído com sucesso!`
       })
-      
-      // Limpa a mensagem após 5 segundos
+
       setTimeout(() => {
         setMensagemFeedback(null)
       }, 5000)
     } catch (err) {
       console.error('Erro ao excluir produto:', err)
-      
-      // Mostra mensagem de erro
       setMensagemFeedback({
         tipo: 'erro',
         texto: err instanceof Error ? err.message : 'Erro ao excluir produto'
       })
-      
-      // Limpa a mensagem após 5 segundos
+
       setTimeout(() => {
         setMensagemFeedback(null)
       }, 5000)
@@ -106,6 +215,115 @@ export default function ProdutosPage() {
       setExcluindo(false)
       setProdutoParaExcluir(null)
     }
+  }
+
+
+
+
+
+  // Renderizar produtos recursivamente
+  const renderProduto = (produto: ProdutoHierarquia, nivel: number = 0): React.ReactNode => {
+    const temDependencias = produto.dependencias && produto.dependencias.length > 0
+    
+    return (
+      <div key={produto.id}>
+        <div 
+          className="flex items-center justify-between py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md px-2"
+          style={{ paddingLeft: `${nivel * 20}px` }}
+        >
+          <div className="flex items-center space-x-3">
+            {/* Botão de expansão - só mostra se tem dependências ou se é nível 0 */}
+            <div className="w-6 h-6 flex items-center justify-center">
+              {nivel === 0 || temDependencias ? (
+                <button
+                  onClick={() => toggleExpansao(produto.id)}
+                  className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {produto.expanded ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </button>
+              ) : (
+                <span className="text-gray-300 dark:text-gray-600">•</span>
+              )}
+            </div>
+
+            {/* Informações do produto */}
+            <div className="flex items-center space-x-3">
+              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                produto.e_materia_prima
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                  : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
+              }`}>
+                {produto.e_materia_prima ? 'MP' : 'P'}
+              </span>
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                  {produto.nome}
+                  {produto.quantidade_necessaria && (
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                      (Qtd: {produto.quantidade_necessaria})
+                    </span>
+                  )}
+                </h3>
+                {produto.descricao && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {produto.descricao}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Ações */}
+          <div className="flex items-center space-x-2">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => router.push(`/produtos/${produto.id}`)}
+                className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                title="Ver detalhes"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => router.push(`/produtos/${produto.id}/editar`)}
+                className="p-1 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400"
+                title="Editar"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => confirmarExclusao(produto)}
+                className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                title="Excluir"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Dependências expandidas */}
+        {produto.expanded && temDependencias && (
+          <div>
+            {produto.dependencias.map(dep => renderProduto(dep, nivel + 1))}
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (loading) {
@@ -122,7 +340,7 @@ export default function ProdutosPage() {
         <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-md">
           <h2 className="text-red-800 dark:text-red-200 font-medium">Erro</h2>
           <p className="text-red-700 dark:text-red-300 mt-1">{error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="mt-3 text-sm text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
           >
@@ -137,11 +355,10 @@ export default function ProdutosPage() {
     <div className="space-y-6">
       {/* Feedback de sucesso ou erro */}
       {mensagemFeedback && (
-        <div className={`p-4 rounded-md ${
-          mensagemFeedback.tipo === 'sucesso' 
-            ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200' 
-            : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
-        }`}>
+        <div className={`p-4 rounded-md ${mensagemFeedback.tipo === 'sucesso'
+          ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200'
+          : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+          }`}>
           <div className="flex">
             <div className="flex-shrink-0">
               {mensagemFeedback.tipo === 'sucesso' ? (
@@ -161,11 +378,10 @@ export default function ProdutosPage() {
               <div className="-mx-1.5 -my-1.5">
                 <button
                   onClick={() => setMensagemFeedback(null)}
-                  className={`inline-flex rounded-md p-1.5 ${
-                    mensagemFeedback.tipo === 'sucesso'
-                      ? 'text-green-500 hover:bg-green-100 dark:hover:bg-green-800'
-                      : 'text-red-500 hover:bg-red-100 dark:hover:bg-red-800'
-                  }`}
+                  className={`inline-flex rounded-md p-1.5 ${mensagemFeedback.tipo === 'sucesso'
+                    ? 'text-green-500 hover:bg-green-100 dark:hover:bg-green-800'
+                    : 'text-red-500 hover:bg-red-100 dark:hover:bg-red-800'
+                    }`}
                 >
                   <span className="sr-only">Fechar</span>
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -184,17 +400,17 @@ export default function ProdutosPage() {
             Produtos
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Gerencie todos os seus produtos e matérias-primas
+            Visualização hierárquica - produtos principais e seus componentes/matérias-primas
           </p>
         </div>
         <Link
           href="/produtos/novo"
           className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-5 w-5 mr-2" 
-            viewBox="0 0 20 20" 
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 mr-2"
+            viewBox="0 0 20 20"
             fill="currentColor"
           >
             <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -203,142 +419,11 @@ export default function ProdutosPage() {
         </Link>
       </div>
 
+      {/* Lista de produtos em árvore hierárquica */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 sm:flex sm:items-center sm:justify-between">
-          <div className="sm:flex-1 sm:flex sm:items-center sm:gap-4">
-            <div className="flex-1">
-              <label htmlFor="search" className="sr-only">Buscar</label>
-              <div className="relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg 
-                    className="h-5 w-5 text-gray-400" 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 20 20" 
-                    fill="currentColor" 
-                    aria-hidden="true"
-                  >
-                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <input
-                  type="text"
-                  name="search"
-                  id="search"
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Buscar produtos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="mt-2 sm:mt-0 flex gap-2">
-              <button
-                onClick={() => setFilterMateriaPrima(null)}
-                className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  filterMateriaPrima === null
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setFilterMateriaPrima(false)}
-                className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  filterMateriaPrima === false
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                Produtos
-              </button>
-              <button
-                onClick={() => setFilterMateriaPrima(true)}
-                className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  filterMateriaPrima === true
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                Matérias-primas
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {filteredProdutos.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Descrição
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Preço Unitário
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Estoque
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tipo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredProdutos.map((produto) => (
-                  <tr key={produto.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {produto.nome}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {produto.descricao.length > 50 ? `${produto.descricao.substring(0, 50)}...` : produto.descricao}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {produto.estoque}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        produto.materia_prima 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200' 
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
-                      }`}>
-                        {produto.materia_prima ? 'Matéria-prima' : 'Produto'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/produtos/${produto.id}`}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4"
-                      >
-                        Detalhes
-                      </Link>
-                      <Link
-                        href={`/produtos/${produto.id}/editar`}
-                        className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300 mr-4"
-                      >
-                        Editar
-                      </Link>
-                      <button
-                        onClick={() => confirmarExclusao(produto)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        Excluir
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {produtos.length > 0 ? (
+          <div className="p-4">
+            {produtos.map(produto => renderProduto(produto))}
           </div>
         ) : (
           <div className="text-center py-12">
@@ -359,8 +444,19 @@ export default function ProdutosPage() {
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Nenhum produto encontrado</h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {searchTerm ? 'Tente ajustar sua busca' : 'Comece adicionando um novo produto'}
+              Comece adicionando um novo produto
             </p>
+            <div className="mt-6">
+              <Link
+                href="/produtos/novo"
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Novo Produto
+              </Link>
+            </div>
           </div>
         )}
       </div>
@@ -371,7 +467,7 @@ export default function ProdutosPage() {
           {/* Backdrop */}
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             {/* Background overlay */}
-            <div 
+            <div
               className="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
               onClick={cancelarExclusao}
               aria-hidden="true"
@@ -404,11 +500,10 @@ export default function ProdutosPage() {
               <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
-                  className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm ${
-                    excluindo 
-                      ? 'bg-red-400 cursor-not-allowed' 
-                      : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
-                  }`}
+                  className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm ${excluindo
+                    ? 'bg-red-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+                    }`}
                   onClick={excluirProduto}
                   disabled={excluindo}
                 >

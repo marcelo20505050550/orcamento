@@ -29,7 +29,7 @@ export default function PedidosPage() {
     const fetchPedidos = async () => {
       setLoading(true)
       try {
-        const response = await api.get('/pedidos')
+        const response = await api.get('/api/pedidos')
         setPedidos(response.data || [])
       } catch (err) {
         console.error('Erro ao buscar pedidos:', err)

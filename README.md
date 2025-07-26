@@ -4,15 +4,22 @@ Este projeto implementa um sistema de backend para gerenciar e automatizar o pro
 
 ## Funcionalidades
 
-- Gerenciamento de produtos e matérias-primas
-- Definição de dependências entre produtos
-- Configuração de processos de fabricação
-- Gestão de mão de obra
-- Criação de pedidos
-- Geração de orçamentos detalhados
-- API RESTful para integração com sistemas frontend
-- Cálculo de dependências recursivas para materiais
-- Cálculo de custos de produção e tempo estimado
+- **Gerenciamento de produtos e matérias-primas**
+  - Visualização hierárquica em árvore com expansão/colapso
+  - Criação inteligente de produtos com seleção de dependências
+  - Filtros por tipo (produto final / matéria-prima)
+  - Busca por nome/descrição mantendo hierarquia
+- **Definição de dependências entre produtos**
+  - Interface visual para visualizar relações entre produtos
+  - Criação automática de dependências durante criação de matérias-primas
+  - Prevenção de dependências circulares
+- **Configuração de processos de fabricação**
+- **Gestão de mão de obra**
+- **Criação de pedidos**
+- **Geração de orçamentos detalhados**
+- **API RESTful para integração com sistemas frontend**
+- **Cálculo de dependências recursivas para materiais**
+- **Cálculo de custos de produção e tempo estimado**
 
 ## Tecnologias Utilizadas
 

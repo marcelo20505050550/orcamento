@@ -97,21 +97,32 @@ export const POST = withAuth(async (req: NextRequest) => {
       );
     }
     
-    // Validação do preço unitário apenas para matérias-primas
-    if (body.e_materia_prima && (body.preco_unitario === undefined || body.preco_unitario < 0)) {
-      return NextResponse.json(
-        { error: 'Preço unitário deve ser um valor positivo para matérias-primas' },
-        { status: 400 }
-      );
+    // Validação específica para produtos simples
+    if (body.tipo_produto === 'simples') {
+      if (body.preco_unitario === undefined || body.preco_unitario === null || body.preco_unitario <= 0) {
+        return NextResponse.json(
+          { error: 'Preço unitário é obrigatório e deve ser maior que zero para produtos simples' },
+          { status: 400 }
+        );
+      }
+      if (body.quantidade_necessaria === undefined || body.quantidade_necessaria === null || body.quantidade_necessaria <= 0) {
+        return NextResponse.json(
+          { error: 'Quantidade necessária é obrigatória e deve ser maior que zero para produtos simples' },
+          { status: 400 }
+        );
+      }
     }
     
     // Valores padrão para campos opcionais
-    const produtoData: Partial<Produto> = {
+    const produtoData: any = {
       nome: body.nome,
+      codigo_produto: body.codigo_produto || null,
       descricao: body.descricao || '',
-      preco_unitario: body.preco_unitario || 0,
-      quantidade_estoque: body.quantidade_estoque || 0,
-      e_materia_prima: body.e_materia_prima || false
+      preco_unitario: body.preco_unitario || null,
+      quantidade_necessaria: body.quantidade_necessaria || null,
+      e_materia_prima: body.e_materia_prima || false,
+      tipo_produto: body.tipo_produto || 'calculo',
+      quantidade_estoque: null // Campo legado, sempre null
     };
     
     console.log('Dados formatados para inserção:', produtoData);

@@ -118,7 +118,8 @@ export const POST = withAuth(async (req: NextRequest) => {
     const processoData: Partial<ProcessoFabricacao> = {
       nome: body.nome,
       preco_por_unidade: body.preco_por_unidade,
-      tempo_estimado_minutos: body.tempo_estimado_minutos
+      tempo_estimado_minutos: body.tempo_estimado_minutos,
+      unidade_medida: body.unidade_medida || 'horas'
     };
     
     console.log('Dados formatados para inserção:', processoData);

@@ -43,6 +43,7 @@ export const GET = withAuth(async (req: NextRequest) => {
       .select(`
         *,
         produto:produtos(*),
+        cliente:clientes(*),
         processos:processos_pedidos(
           *,
           processo:processos_fabricacao(*)
@@ -107,9 +108,9 @@ export const POST = withAuth(async (req: NextRequest) => {
     const body = await req.json();
     
     // Validação dos campos obrigatórios
-    if (!body.produto_id) {
+    if (!body.cliente_id) {
       return NextResponse.json(
-        { error: 'ID do produto é obrigatório' },
+        { error: 'ID do cliente é obrigatório' },
         { status: 400 }
       );
     }
@@ -161,39 +162,115 @@ export const POST = withAuth(async (req: NextRequest) => {
       );
     }
     
-    // Verifica se o produto existe
-    const { data: produtoExistente, error: errorProduto } = await supabaseAdmin
-      .from('produtos')
-      .select('id, nome, e_materia_prima')
-      .eq('id', body.produto_id)
+    // Verifica se o cliente existe
+    const { data: clienteExistente, error: errorCliente } = await supabaseAdmin
+      .from('clientes')
+      .select('id, nome_cliente_empresa')
+      .eq('id', body.cliente_id)
       .maybeSingle();
       
-    if (errorProduto) {
-      logError('Erro ao verificar produto', errorProduto);
+    if (errorCliente) {
+      logError('Erro ao verificar cliente', errorCliente);
       return NextResponse.json(
-        { error: 'Erro ao verificar produto' },
+        { error: 'Erro ao verificar cliente' },
         { status: 500 }
       );
     }
     
-    if (!produtoExistente) {
+    if (!clienteExistente) {
       return NextResponse.json(
-        { error: 'Produto não encontrado' },
+        { error: 'Cliente não encontrado' },
         { status: 404 }
       );
     }
     
-    // Verifica se o produto não é uma matéria-prima
-    if (produtoExistente.e_materia_prima) {
-      return NextResponse.json(
-        { error: 'Não é possível criar pedido para matéria-prima' },
-        { status: 400 }
-      );
+    // Se produto_id não foi fornecido, busca ou cria um produto padrão
+    let produtoExistente = null;
+    let produtoId = body.produto_id;
+    
+    if (!produtoId) {
+      // Busca um produto padrão existente
+      const { data: produtoPadrao, error: errorPadrao } = await supabaseAdmin
+        .from('produtos')
+        .select('id, nome, e_materia_prima')
+        .eq('nome', 'Produto Personalizado')
+        .eq('e_materia_prima', false)
+        .maybeSingle();
+        
+      if (errorPadrao) {
+        logError('Erro ao buscar produto padrão', errorPadrao);
+        return NextResponse.json(
+          { error: 'Erro ao buscar produto padrão' },
+          { status: 500 }
+        );
+      }
+      
+      if (produtoPadrao) {
+        produtoId = produtoPadrao.id;
+        produtoExistente = produtoPadrao;
+      } else {
+        // Cria um produto padrão se não existir
+        const { data: novoProduto, error: errorNovo } = await supabaseAdmin
+          .from('produtos')
+          .insert({
+            nome: 'Produto Personalizado',
+            descricao: 'Produto criado automaticamente para pedidos sem produto específico',
+            preco_unitario: 0,
+            quantidade_estoque: 0,
+            e_materia_prima: false
+          })
+          .select('id, nome, e_materia_prima')
+          .single();
+          
+        if (errorNovo) {
+          logError('Erro ao criar produto padrão', errorNovo);
+          return NextResponse.json(
+            { error: 'Erro ao criar produto padrão' },
+            { status: 500 }
+          );
+        }
+        
+        produtoId = novoProduto.id;
+        produtoExistente = novoProduto;
+      }
+    } else {
+      // Se produto_id foi fornecido, verifica se existe e não é matéria-prima
+      const { data: produto, error: errorProduto } = await supabaseAdmin
+        .from('produtos')
+        .select('id, nome, e_materia_prima')
+        .eq('id', produtoId)
+        .maybeSingle();
+        
+      if (errorProduto) {
+        logError('Erro ao verificar produto', errorProduto);
+        return NextResponse.json(
+          { error: 'Erro ao verificar produto' },
+          { status: 500 }
+        );
+      }
+      
+      if (!produto) {
+        return NextResponse.json(
+          { error: 'Produto não encontrado' },
+          { status: 404 }
+        );
+      }
+      
+      // Verifica se o produto não é uma matéria-prima
+      if (produto.e_materia_prima) {
+        return NextResponse.json(
+          { error: 'Não é possível criar pedido para matéria-prima' },
+          { status: 400 }
+        );
+      }
+      
+      produtoExistente = produto;
     }
     
     // Prepara os dados para inserção
     const pedidoData = {
-      produto_id: body.produto_id,
+      cliente_id: body.cliente_id,
+      produto_id: produtoId,
       quantidade: body.quantidade,
       status: StatusPedido.PENDENTE,
       observacoes: body.observacoes || null,
@@ -231,8 +308,9 @@ export const POST = withAuth(async (req: NextRequest) => {
       .from('historico_status_pedidos')
       .insert(historicoData);
     
-    logInfo(`Pedido ${pedido.id} criado com sucesso para o produto ${produtoExistente.nome}`, { 
-      produto_id: produtoExistente.id,
+    logInfo(`Pedido ${pedido.id} criado com sucesso para o cliente ${clienteExistente.nome_cliente_empresa}`, { 
+      cliente_id: clienteExistente.id,
+      produto_id: produtoExistente?.id || null,
       usuario_id: user.id
     });
     

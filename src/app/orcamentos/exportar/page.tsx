@@ -139,7 +139,7 @@ function ExportarOrcamentoContent() {
         setLoading(true)
         setError(null)
         
-        const response = await api.get('/orcamentos/exportar', {
+        const response = await api.get('/api/orcamentos/exportar', {
           params: { pedido_id: pedidoId }
         })
         

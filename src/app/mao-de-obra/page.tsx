@@ -24,7 +24,7 @@ export default function MaoDeObraPage() {
     const fetchMaosDeObra = async () => {
       setLoading(true)
       try {
-        const response = await api.get('/mao-de-obra')
+        const response = await api.get('/api/mao-de-obra')
         setMaosDeObra(response.data || [])
       } catch (err) {
         console.error('Erro ao buscar mão de obra:', err)

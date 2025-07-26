@@ -41,4 +41,156 @@ No Next.js 15, os parâmetros de rota em componentes cliente foram alterados par
 **Impacto:**
 Ao utilizar `React.use()` para desempacotar os parâmetros, eliminamos os avisos de console e preparamos a aplicação para compatibilidade com futuras versões do Next.js, onde o acesso direto será totalmente removido.
 
+### Melhoria: Implementação de Logging Estruturado
+
+**Problema:**
+A utilização de `console.log` para debug, especialmente em um ambiente de produção como o Vercel, é insuficiente. Os logs não são estruturados, não possuem níveis de severidade (info, error, warning) e não incluem informações contextuais como timestamps, o que torna a análise e a depuração de erros 500 ou outros comportamentos inesperados muito difícil.
+
+**Solução:**
+Implementar um logger estruturado utilizando a biblioteca `Winston`. Isso permite a criação de logs detalhados, formatados (em JSON, por exemplo) e com níveis, que podem ser facilmente pesquisados e filtrados nas ferramentas de log da plataforma de hospedagem.
+
+**Exemplo de implementação (`src/utils/logger.ts`):**
+```typescript
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
+  format: winston.format.combine(
+    winston.format.timestamp({
+      format: 'YYYY-MM-DD HH:mm:ss'
+    }),
+    winston.format.errors({ stack: true }),
+    winston.format.splat(),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+    // Em um cenário de produção real, você adicionaria transportes 
+    // para serviços de logging como Sentry, Logtail, etc.
+  ]
+});
+
+export default logger;
+```
+
+**Exemplo de uso em uma rota de API:**
+```typescript
+import logger from '@/utils/logger';
+
+export async function GET(request: Request) {
+  logger.info('Recebida requisição GET para /api/example');
+  try {
+    // ... lógica da sua API ...
+    const data = { message: 'Sucesso!' };
+    logger.info('Requisição processada com sucesso.', { data });
+    return NextResponse.json(data);
+  } catch (error) {
+    logger.error('Erro ao processar a requisição GET', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return NextResponse.json(
+      { error: 'Erro interno no servidor.' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### Correção: Criação Manual de Usuários no Supabase Auth
+
+**Problema:**
+Não há uma função SQL direta exposta para criar usuários no Supabase Auth via queries SQL. A criação de usuários normalmente é feita através do cliente administrativo JavaScript (`supabase.auth.admin.createUser()`), mas quando não há acesso a essas ferramentas, pode ser necessário criar usuários manualmente no banco de dados.
+
+**Solução:**
+É possível criar usuários manualmente inserindo dados diretamente nas tabelas `auth.users` e `auth.identities`, seguindo as seguintes etapas:
+
+1. **Criar o usuário na tabela `auth.users`:**
+   ```sql
+   INSERT INTO auth.users (
+       id,
+       email, 
+       encrypted_password, 
+       email_confirmed_at,
+       role,
+       aud,
+       created_at,
+       updated_at,
+       raw_app_meta_data,
+       raw_user_meta_data
+   ) VALUES (
+       gen_random_uuid(),
+       'usuario@exemplo.com',
+       crypt('senha123', gen_salt('bf')), -- Usando bcrypt via pgcrypto
+       NOW(),
+       'authenticated',
+       'authenticated', 
+       NOW(),
+       NOW(),
+       '{"provider": "email", "providers": ["email"]}',
+       '{"nome": "Nome do Usuário"}'
+   );
+   ```
+
+2. **Criar a identidade correspondente na tabela `auth.identities`:**
+   ```sql
+   INSERT INTO auth.identities (
+       id,
+       user_id,
+       provider_id,
+       provider,
+       identity_data,
+       created_at,
+       updated_at
+   ) VALUES (
+       gen_random_uuid(),
+       '{user_id_obtido_da_query_anterior}',
+       '{user_id_obtido_da_query_anterior}',
+       'email',
+       '{"sub": "{user_id_obtido_da_query_anterior}", "email": "usuario@exemplo.com", "email_verified": true, "provider": "email"}',
+       NOW(),
+       NOW()
+   );
+   ```
+
+**Pontos importantes:**
+- A coluna `confirmed_at` em `auth.users` é gerada automaticamente como `LEAST(email_confirmed_at, phone_confirmed_at)`
+- A coluna `email` em `auth.identities` é gerada automaticamente a partir do `identity_data`
+- A extensão `pgcrypto` deve estar disponível para usar `crypt()` e `gen_salt()`
+- O hash bcrypt é gerado usando `crypt('senha', gen_salt('bf'))`
+- Ambas as tabelas precisam ser populadas para que o usuário funcione corretamente
+- O campo `provider_id` na tabela `identities` deve ser igual ao `user_id` para provedores de email
+
+**Requisitos:**
+- Extensão `pgcrypto` instalada (geralmente já disponível no Supabase)
+- Acesso direto ao banco de dados via SQL
+
+### Correção: Acesso incorreto aos dados das APIs nas funções utilitárias
+
+**Problema:**
+Na função `buscarProdutosHierarquia` em `src/utils/produtoHierarchy.ts`, o acesso aos dados retornados pelas APIs estava incorreto. O código estava fazendo `produtosResponse.data.data` quando deveria ser apenas `produtosResponse.data`.
+
+**Causa:**
+O cliente API (`src/lib/api.ts`) já retorna diretamente o resultado do `response.json()`, que é o objeto completo da resposta da API. A API de produtos retorna `{data: [...], pagination: {...}}`, então para acessar o array de produtos, basta usar `produtosResponse.data`.
+
+**Solução:**
+```typescript
+// Antes (incorreto)
+const produtos: ProdutoComDependencias[] = produtosResponse.data?.data || []
+const dependencias: Dependencia[] = dependenciasResponse.data?.data || []
+
+// Depois (correto)
+const produtos: ProdutoComDependencias[] = produtosResponse.data || []
+const dependencias: Dependencia[] = dependenciasResponse.data || []
+```
+
+**Impacto:**
+Esta correção resolveu o problema onde a página `/produtos` mostrava "Nenhum produto encontrado" mesmo após produtos serem criados com sucesso. A hierarquia de produtos agora carrega corretamente.
+
 ---

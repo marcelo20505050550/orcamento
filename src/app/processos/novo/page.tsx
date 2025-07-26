@@ -68,7 +68,7 @@ export default function NovoProcessoPage() {
       }
 
       // Envia os dados para a API
-      const response = await api.post('/processos', processoData)
+      const response = await api.post('/api/processos', processoData)
 
       if (!response.data) {
         throw new Error('Erro ao cadastrar processo')

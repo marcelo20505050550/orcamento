@@ -78,9 +78,7 @@ function OrcamentosContent() {
       }
       
       // Verifica a estrutura da resposta
-      if (response.data && response.data.data) {
-        setOrcamento(response.data.data)
-      } else if (response.data) {
+      if (response.data) {
         setOrcamento(response.data)
       } else {
         throw new Error('Estrutura de dados do orçamento inválida')
