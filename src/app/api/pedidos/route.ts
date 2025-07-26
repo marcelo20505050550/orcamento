@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '../middleware';
-import { logError, logInfo } from '@/utils/logger';
+// import { logError, logInfo } from '@/utils/logger';
 import { StatusPedido } from '@/types';
 
 // Helper function para obter usuário do token
@@ -32,6 +32,8 @@ async function getUserFromToken(req: NextRequest) {
  */
 export const GET = withAuth(async (req: NextRequest) => {
   try {
+    console.log('Iniciando busca de pedidos...');
+    
     // Obtém parâmetros de query da URL
     const url = new URL(req.url);
     const page = parseInt(url.searchParams.get('page') || '1');
@@ -39,36 +41,15 @@ export const GET = withAuth(async (req: NextRequest) => {
     const status = url.searchParams.get('status');
     const produtoId = url.searchParams.get('produto_id');
     
-    // Obtém o usuário atual a partir do token
-    try {
-      const user = await getUserFromToken(req);
-      logInfo(`Listando pedidos para usuário ${user.id}`);
-    } catch (authError) {
-      return NextResponse.json(
-        { error: authError.message },
-        { status: 401 }
-      );
-    }
+    console.log('Parâmetros:', { page, pageSize, status, produtoId });
     
     // Calcula o offset para paginação
     const offset = (page - 1) * pageSize;
     
-    // Constrói a query base - REMOVIDO FILTRO POR USUÁRIO para mostrar todos os pedidos
+    // Query simplificada primeiro
     let query = supabaseAdmin
       .from('pedidos')
-      .select(`
-        *,
-        produto:produtos(*),
-        cliente:clientes(*),
-        processos:processos_pedidos(
-          *,
-          processo:processos_fabricacao(*)
-        ),
-        mao_de_obra:mao_de_obra_pedidos(
-          *,
-          mao_de_obra:mao_de_obra(*)
-        )
-      `, { count: 'exact' });
+      .select('*', { count: 'exact' });
     
     // Aplica filtros se fornecidos
     if (status) {
@@ -85,18 +66,18 @@ export const GET = withAuth(async (req: NextRequest) => {
       .range(offset, offset + pageSize - 1);
       
     if (error) {
-      logError('Erro ao listar pedidos', error);
+      console.error('Erro ao listar pedidos', error);
       return NextResponse.json(
-        { error: 'Erro ao obter lista de pedidos' },
+        { error: 'Erro ao obter lista de pedidos', details: error.message },
         { status: 500 }
       );
     }
     
-    logInfo(`Listados ${data.length} pedidos para o usuário ${user.id}`);
+    console.log(`Listados ${data?.length || 0} pedidos`);
     
     // Retorna dados com metadados de paginação
     return NextResponse.json({
-      data,
+      data: data || [],
       pagination: {
         total: count || 0,
         page,
@@ -105,9 +86,9 @@ export const GET = withAuth(async (req: NextRequest) => {
       }
     });
   } catch (error) {
-    logError('Erro não tratado ao listar pedidos', error);
+    console.error('Erro não tratado ao listar pedidos', error);
     return NextResponse.json(
-      { error: 'Erro interno ao processar a requisição' },
+      { error: 'Erro interno ao processar a requisição', details: error instanceof Error ? error.message : 'Erro desconhecido' },
       { status: 500 }
     );
   }
@@ -168,7 +149,7 @@ export const POST = withAuth(async (req: NextRequest) => {
       .maybeSingle();
       
     if (errorCliente) {
-      logError('Erro ao verificar cliente', errorCliente);
+      console.error('Erro ao verificar cliente', errorCliente);
       return NextResponse.json(
         { error: 'Erro ao verificar cliente' },
         { status: 500 }
@@ -196,7 +177,7 @@ export const POST = withAuth(async (req: NextRequest) => {
         .maybeSingle();
         
       if (errorPadrao) {
-        logError('Erro ao buscar produto padrão', errorPadrao);
+        console.error('Erro ao buscar produto padrão', errorPadrao);
         return NextResponse.json(
           { error: 'Erro ao buscar produto padrão' },
           { status: 500 }
@@ -221,7 +202,7 @@ export const POST = withAuth(async (req: NextRequest) => {
           .single();
           
         if (errorNovo) {
-          logError('Erro ao criar produto padrão', errorNovo);
+          console.error('Erro ao criar produto padrão', errorNovo);
           return NextResponse.json(
             { error: 'Erro ao criar produto padrão' },
             { status: 500 }
@@ -240,7 +221,7 @@ export const POST = withAuth(async (req: NextRequest) => {
         .maybeSingle();
         
       if (errorProduto) {
-        logError('Erro ao verificar produto', errorProduto);
+        console.error('Erro ao verificar produto', errorProduto);
         return NextResponse.json(
           { error: 'Erro ao verificar produto' },
           { status: 500 }
@@ -285,7 +266,7 @@ export const POST = withAuth(async (req: NextRequest) => {
       .single();
       
     if (error) {
-      logError('Erro ao inserir pedido', error);
+      console.error('Erro ao inserir pedido', error);
       return NextResponse.json(
         { error: 'Erro ao cadastrar pedido' },
         { status: 500 }
@@ -304,11 +285,7 @@ export const POST = withAuth(async (req: NextRequest) => {
       .from('historico_status_pedidos')
       .insert(historicoData);
     
-    logInfo(`Pedido ${pedido.id} criado com sucesso para o cliente ${clienteExistente.nome_cliente_empresa}`, { 
-      cliente_id: clienteExistente.id,
-      produto_id: produtoExistente?.id || null,
-      usuario_id: user.id
-    });
+    console.log(`Pedido ${pedido.id} criado com sucesso para o cliente ${clienteExistente.nome_cliente_empresa}`);
     
     return NextResponse.json(
       { 
@@ -318,7 +295,7 @@ export const POST = withAuth(async (req: NextRequest) => {
       { status: 201 }
     );
   } catch (error) {
-    logError('Erro não tratado ao criar pedido', error);
+    console.error('Erro não tratado ao criar pedido', error);
     return NextResponse.json(
       { error: 'Erro interno ao processar a requisição' },
       { status: 500 }

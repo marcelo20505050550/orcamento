@@ -52,30 +52,18 @@ export async function authMiddleware(req: NextRequest) {
       );
     }
 
-    // Verifica o token com o Supabase - MÉTODO MAIS ROBUSTO
-    try {
-      const { data, error } = await supabase.auth.getUser(token);
+    // Verifica o token com o Supabase
+    const { data, error } = await supabase.auth.getUser(token);
 
-      if (error || !data.user) {
-        // Se falhar, tenta verificar com método alternativo
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(data?.user?.id || '');
-        
-        if (userError || !userData.user) {
-          return NextResponse.json(
-            { error: 'Token de autenticação inválido ou expirado' },
-            { status: 401 }
-          );
-        }
-      }
-
-      // Token válido, continua
-      return null;
-    } catch (tokenError) {
+    if (error || !data.user) {
       return NextResponse.json(
-        { error: 'Erro na verificação do token' },
+        { error: 'Token de autenticação inválido ou expirado' },
         { status: 401 }
       );
     }
+
+    // Token válido, continua
+    return null;
   } catch (error) {
     logError('Erro no middleware de autenticação', error);
     return NextResponse.json(
