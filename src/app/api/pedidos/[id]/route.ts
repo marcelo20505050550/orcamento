@@ -34,13 +34,12 @@ interface MaoDeObraPedidoData {
   };
 }
 
-// Função auxiliar para verificar se o pedido existe e pertence ao usuário
-async function verificarPedidoDoUsuario(id: string, userId: string) {
+// Função auxiliar para verificar se o pedido existe - REMOVIDO FILTRO POR USUÁRIO
+async function verificarPedido(id: string) {
   const { data, error } = await supabaseAdmin
     .from('pedidos')
     .select('id, status')
     .eq('id', id)
-    .eq('user_id', userId)
     .maybeSingle();
     
   if (error) {
@@ -83,7 +82,7 @@ export const GET = withAuth(async (
       );
     }
     
-    // Busca o pedido no banco de dados
+    // Busca o pedido no banco de dados - REMOVIDO FILTRO POR USUÁRIO
     const { data, error } = await supabaseAdmin
       .from('pedidos')
       .select(`
@@ -101,7 +100,6 @@ export const GET = withAuth(async (
         historico:historico_status_pedidos(*)
       `)
       .eq('id', id)
-      .eq('user_id', user.id)
       .single();
       
     if (error) {
@@ -185,12 +183,12 @@ export const PUT = withAuth(async (
       );
     }
     
-    // Verifica se o pedido existe e pertence ao usuário
-    const pedidoExistente = await verificarPedidoDoUsuario(id, user.id);
+    // Verifica se o pedido existe - REMOVIDO VERIFICAÇÃO DE USUÁRIO
+    const pedidoExistente = await verificarPedido(id);
     
     if (!pedidoExistente) {
       return NextResponse.json(
-        { error: 'Pedido não encontrado ou não pertence ao usuário atual' },
+        { error: 'Pedido não encontrado' },
         { status: 404 }
       );
     }
@@ -281,12 +279,11 @@ export const PUT = withAuth(async (
       );
     }
     
-    // Atualiza o pedido
+    // Atualiza o pedido - REMOVIDO FILTRO POR USUÁRIO
     const { data, error } = await supabaseAdmin
       .from('pedidos')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id)
       .select()
       .single();
       
@@ -361,12 +358,12 @@ export const DELETE = withAuth(async (
       );
     }
     
-    // Verifica se o pedido existe e pertence ao usuário
-    const pedidoExistente = await verificarPedidoDoUsuario(id, user.id);
+    // Verifica se o pedido existe - REMOVIDO VERIFICAÇÃO DE USUÁRIO
+    const pedidoExistente = await verificarPedido(id);
     
     if (!pedidoExistente) {
       return NextResponse.json(
-        { error: 'Pedido não encontrado ou não pertence ao usuário atual' },
+        { error: 'Pedido não encontrado' },
         { status: 404 }
       );
     }
@@ -385,8 +382,7 @@ export const DELETE = withAuth(async (
     const { error } = await supabaseAdmin
       .from('pedidos')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
       
     if (error) {
       logError(`Erro ao excluir pedido com ID ${id}`, error);

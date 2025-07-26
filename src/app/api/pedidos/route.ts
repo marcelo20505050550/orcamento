@@ -37,7 +37,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     // Calcula o offset para paginação
     const offset = (page - 1) * pageSize;
     
-    // Constrói a query base
+    // Constrói a query base - REMOVIDO FILTRO POR USUÁRIO para mostrar todos os pedidos
     let query = supabaseAdmin
       .from('pedidos')
       .select(`
@@ -52,8 +52,7 @@ export const GET = withAuth(async (req: NextRequest) => {
           *,
           mao_de_obra:mao_de_obra(*)
         )
-      `, { count: 'exact' })
-      .eq('user_id', user.id);
+      `, { count: 'exact' });
     
     // Aplica filtros se fornecidos
     if (status) {
@@ -122,30 +121,14 @@ export const POST = withAuth(async (req: NextRequest) => {
       );
     }
     
-    // Validação dos novos campos opcionais
+    // Validação dos campos opcionais
     const temFrete = Boolean(body.tem_frete);
     const valorFrete = temFrete ? (body.valor_frete || 0) : 0;
-    const margemLucroPercentual = body.margem_lucro_percentual || 0;
-    const impostosPercentual = body.impostos_percentual || 0;
     
-    // Validações dos novos campos
+    // Validações dos campos
     if (valorFrete < 0) {
       return NextResponse.json(
         { error: 'Valor do frete deve ser positivo ou zero' },
-        { status: 400 }
-      );
-    }
-    
-    if (margemLucroPercentual < 0) {
-      return NextResponse.json(
-        { error: 'Margem de lucro deve ser positiva ou zero' },
-        { status: 400 }
-      );
-    }
-    
-    if (impostosPercentual < 0) {
-      return NextResponse.json(
-        { error: 'Impostos devem ser positivos ou zero' },
         { status: 400 }
       );
     }
@@ -276,8 +259,6 @@ export const POST = withAuth(async (req: NextRequest) => {
       observacoes: body.observacoes || null,
       tem_frete: temFrete,
       valor_frete: valorFrete,
-      margem_lucro_percentual: margemLucroPercentual,
-      impostos_percentual: impostosPercentual,
       user_id: user.id
     };
     
