@@ -16,6 +16,7 @@ type PedidoDetalhes = {
   observacoes?: string
   tem_frete: boolean
   valor_frete: number
+  condicao_pagamento?: string
   created_at: string
   updated_at: string
   cliente?: Cliente
@@ -58,8 +59,10 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
   // Estados para edição
   const [editando, setEditando] = useState(false)
   const [formData, setFormData] = useState({
-    quantidade: '1'
+    quantidade: '1',
+    numero_manual: ''
   })
+  const [condicaoPagamento, setCondicaoPagamento] = useState('')
 
   useEffect(() => {
     const fetchPedido = async () => {
@@ -75,14 +78,21 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
         setPedido(pedidoData)
 
         // Configurar dados do formulário
+        const numeroManual = pedidoData.numero_orcamento ? 
+          pedidoData.numero_orcamento.split('-')[1] || '' : ''
+        
         setFormData({
-          quantidade: pedidoData.quantidade?.toString() || '1'
+          quantidade: pedidoData.quantidade?.toString() || '1',
+          numero_manual: numeroManual
         })
 
         // Configurar observações
         if (pedidoData.observacoes) {
           setObservacoes(pedidoData.observacoes.split('\n').filter((obs: string) => obs.trim()))
         }
+
+        // Configurar condição de pagamento
+        setCondicaoPagamento(pedidoData.condicao_pagamento || '')
 
         // Buscar produtos do pedido
         try {
@@ -184,7 +194,7 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
 
-    if (name === 'quantidade') {
+    if (name === 'quantidade' || name === 'numero_manual') {
       const formattedValue = value.replace(/\D/g, '')
       setFormData({
         ...formData,
@@ -227,6 +237,25 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
 
   const excluirObservacao = (index: number) => {
     setObservacoes(observacoes.filter((_, i) => i !== index))
+  }
+
+  const salvarCondicaoPagamento = async () => {
+    try {
+      const response = await api.put(`/api/pedidos/${pedidoId}`, {
+        condicao_pagamento: condicaoPagamento
+      })
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      // Atualizar o pedido local
+      if (pedido) {
+        setPedido({ ...pedido, condicao_pagamento: condicaoPagamento })
+      }
+    } catch (error) {
+      console.error('Erro ao salvar condição de pagamento:', error)
+    }
   }
 
   const adicionarProduto = async (produtoId: string) => {
@@ -343,10 +372,27 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
   const salvarAlteracoes = async () => {
     setSalvandoObservacoes(true)
     try {
+      // Gerar número do orçamento se foi alterado
+      let numeroOrcamento = pedido?.numero_orcamento
+      if (formData.numero_manual && formData.numero_manual !== (pedido?.numero_orcamento?.split('-')[1] || '')) {
+        try {
+          const numeroResponse = await api.post('/api/orcamento/gerar-numero', {
+            numero_manual: parseInt(formData.numero_manual)
+          })
+          if (numeroResponse.error) {
+            throw new Error(numeroResponse.error)
+          }
+          numeroOrcamento = numeroResponse.numero
+        } catch (err) {
+          throw new Error('Erro ao gerar número do orçamento')
+        }
+      }
+
       // Atualizar dados básicos do pedido
       await api.put(`/api/pedidos/${pedidoId}`, {
         quantidade: parseInt(formData.quantidade),
-        observacoes: observacoes.join('\n') || null
+        observacoes: observacoes.join('\n') || null,
+        numero_orcamento: numeroOrcamento
       })
 
       setEditando(false)
@@ -356,7 +402,7 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
 
     } catch (error) {
       console.error('Erro ao salvar alterações:', error)
-      setError('Erro ao salvar alterações')
+      setError(error instanceof Error ? error.message : 'Erro ao salvar alterações')
     } finally {
       setSalvandoObservacoes(false)
     }
@@ -534,6 +580,37 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
                   />
                 ) : (
                   <p className="text-sm text-gray-900 dark:text-white">{pedido.quantidade}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="sm:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Número do Orçamento
+              </label>
+              <div className="mt-1">
+                {editando ? (
+                  <div className="flex items-center">
+                    <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm rounded-l-md">
+                      BV-
+                    </span>
+                    <input
+                      type="text"
+                      name="numero_manual"
+                      value={formData.numero_manual}
+                      onChange={handleChange}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                      placeholder="00001"
+                      maxLength={5}
+                    />
+                    <span className="inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm rounded-r-md">
+                      -{new Date().getFullYear().toString().slice(-2)}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-900 dark:text-white">
+                    {pedido.numero_orcamento || 'Não definido'}
+                  </p>
                 )}
               </div>
             </div>
@@ -747,6 +824,37 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
               </p>
             )}
           </div>
+
+          {/* Seção de Condição de Pagamento */}
+          <div className="sm:col-span-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Condição de Pagamento
+            </label>
+
+            {editando ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={condicaoPagamento}
+                  onChange={(e) => setCondicaoPagamento(e.target.value)}
+                  placeholder="Ex: À vista, 30 dias, 2x sem juros..."
+                  className="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), salvarCondicaoPagamento())}
+                />
+                <button
+                  type="button"
+                  onClick={salvarCondicaoPagamento}
+                  className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Salvar
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                {condicaoPagamento || 'Não definida'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -780,12 +888,6 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
                 {pedido.cliente.nome_cliente_empresa}
               </p>
             </div>
-            <div>
-              <p className="text-xs text-blue-700 dark:text-blue-300">Responsável</p>
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                {pedido.cliente.nome_responsavel}
-              </p>
-            </div>
             {pedido.cliente.cnpj_cpf && (
               <div>
                 <p className="text-xs text-blue-700 dark:text-blue-300">CNPJ/CPF</p>
@@ -808,68 +910,12 @@ export default function PedidoDetalhesPage({ params }: { params: Promise<{ id: s
                 </p>
               </div>
             )}
-            {pedido.cliente.endereco && (
-              <div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">Endereço</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  {pedido.cliente.endereco}
-                </p>
-              </div>
-            )}
-            {pedido.cliente.bairro && (
-              <div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">Bairro</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  {pedido.cliente.bairro}
-                </p>
-              </div>
-            )}
             <div>
-              <p className="text-xs text-blue-700 dark:text-blue-300">Cidade/Estado</p>
-              <p className="text-sm text-blue-900 dark:text-blue-100">
-                {pedido.cliente.cidade}, {pedido.cliente.estado_uf}
+              <p className="text-xs text-blue-700 dark:text-blue-300">Responsável</p>
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                {pedido.cliente.nome_responsavel}
               </p>
             </div>
-            {pedido.cliente.cep && (
-              <div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">CEP</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  {pedido.cliente.cep}
-                </p>
-              </div>
-            )}
-            {pedido.cliente.tipo_interesse && (
-              <div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">Tipo de Interesse</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  {pedido.cliente.tipo_interesse}
-                </p>
-              </div>
-            )}
-            {pedido.cliente.origem_contato && (
-              <div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">Origem do Contato</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  {pedido.cliente.origem_contato}
-                </p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs text-blue-700 dark:text-blue-300">Status do Orçamento</p>
-              <p className="text-sm text-blue-900 dark:text-blue-100">
-                {pedido.cliente.status_orcamento === 'aberto' ? 'Aberto' :
-                  pedido.cliente.status_orcamento === 'pedido_confirmado' ? 'Pedido Confirmado' :
-                    'Cancelado'}
-              </p>
-            </div>
-            {pedido.cliente.descricao_demanda && (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <p className="text-xs text-blue-700 dark:text-blue-300">Descrição da Demanda</p>
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  {pedido.cliente.descricao_demanda}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       )}

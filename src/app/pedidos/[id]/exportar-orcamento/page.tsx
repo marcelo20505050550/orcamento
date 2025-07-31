@@ -15,6 +15,7 @@ type PedidoDetalhes = {
   observacoes?: string
   tem_frete: boolean
   valor_frete: number
+  condicao_pagamento?: string
   created_at: string
   updated_at: string
   cliente?: Cliente
@@ -31,6 +32,18 @@ type PedidoDetalhes = {
   }>
 }
 
+type EmpresaConfig = {
+  id: string
+  nome_empresa: string
+  cnpj: string
+  inscricao_estadual: string
+  endereco: string
+  telefone_1: string
+  telefone_2?: string
+  email: string
+  instagram?: string
+}
+
 export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const pedidoId = use(params).id
@@ -38,6 +51,8 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
   const [pedido, setPedido] = useState<PedidoDetalhes | null>(null)
   const [impostos, setImpostos] = useState<ImpostoPedido[]>([])
   const [produtosSelecionados, setProdutosSelecionados] = useState<{ id: string, nome: string, custoTotal: number, quantidade: number }[]>([])
+  const [empresaConfig, setEmpresaConfig] = useState<EmpresaConfig | null>(null)
+  const [numeroOrcamento, setNumeroOrcamento] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,6 +66,21 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
           throw new Error(pedidoResponse.error || 'Erro ao carregar detalhes do pedido')
         }
         setPedido(pedidoResponse.data)
+
+        // Buscar configurações da empresa
+        const empresaResponse = await api.get('/api/empresa-config')
+        if (empresaResponse && !empresaResponse.error) {
+          setEmpresaConfig(empresaResponse.data)
+        }
+
+        // Usar número do orçamento do pedido ou gerar um padrão
+        if (pedidoResponse.data.numero_orcamento) {
+          setNumeroOrcamento(pedidoResponse.data.numero_orcamento)
+        } else {
+          // Fallback para pedidos antigos sem número
+          const anoAtual = new Date().getFullYear().toString().slice(-2)
+          setNumeroOrcamento(`BV-${pedidoResponse.data.id.slice(-5).toUpperCase()}-${anoAtual}`)
+        }
 
         // Buscar impostos
         const impostosResponse = await api.get(`/api/pedidos/${pedidoId}/impostos`)
@@ -140,7 +170,31 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
   const valorFinal = valorComImpostos + valorFrete
 
   const handlePrint = () => {
+    // Configurar impressão sem cabeçalho e rodapé
+    const style = document.createElement('style')
+    style.textContent = `
+      @media print {
+        @page {
+          margin: 15mm;
+          size: A4;
+          /* Remove cabeçalho e rodapé da impressão */
+          @top-left { content: ""; }
+          @top-center { content: ""; }
+          @top-right { content: ""; }
+          @bottom-left { content: ""; }
+          @bottom-center { content: ""; }
+          @bottom-right { content: ""; }
+        }
+      }
+    `
+    document.head.appendChild(style)
+    
     window.print()
+    
+    // Remove o estilo após a impressão
+    setTimeout(() => {
+      document.head.removeChild(style)
+    }, 1000)
   }
 
   const handleExportPDF = async () => {
@@ -161,7 +215,7 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
         }
 
         // Criar uma nova janela com o conteúdo do orçamento
-        const printWindow = window.open('', '_blank', 'width=800,height=600')
+        const printWindow = window.open('', '_blank', 'width=800,height=600,location=no,menubar=no,toolbar=no,status=no')
         if (!printWindow) {
           alert('Popup bloqueado. Permita popups para exportar PDF.\n\nAlternativamente, use o botão "Imprimir" desta página.')
           return
@@ -173,11 +227,39 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
           <html>
           <head>
             <meta charset="UTF-8">
-            <title>Orçamento - Pedido ${pedido.id.slice(-8)}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Orçamento</title>
             <style>
               @page {
                 margin: 15mm;
                 size: A4;
+                /* Remove cabeçalho e rodapé da impressão */
+                @top-left { content: ""; }
+                @top-center { content: ""; }
+                @top-right { content: ""; }
+                @bottom-left { content: ""; }
+                @bottom-center { content: ""; }
+                @bottom-right { content: ""; }
+              }
+              
+              @media print {
+                @page {
+                  margin: 15mm;
+                  size: A4;
+                  /* Remove cabeçalho e rodapé da impressão */
+                  @top-left { content: ""; }
+                  @top-center { content: ""; }
+                  @top-right { content: ""; }
+                  @bottom-left { content: ""; }
+                  @bottom-center { content: ""; }
+                  @bottom-right { content: ""; }
+                }
+                
+                /* Ocultar URL e outras informações do navegador */
+                body {
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
               }
               
               * {
@@ -439,42 +521,72 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
               /* Quebras de página */
               .page-break { page-break-before: always; }
               .no-break { page-break-inside: avoid; }
-              
-              /* Rodapé */
-              .footer {
-                margin-top: 30px;
-                text-align: center;
-                font-size: 9pt;
-                color: #6b7280;
-                border-top: 1px solid #e5e7eb;
-                padding-top: 10px;
-              }
             </style>
+            <script>
+              // Configurar impressão sem cabeçalho e rodapé
+              window.addEventListener('beforeprint', function() {
+                // Tentar configurar as opções de impressão
+                if (window.chrome && window.chrome.webstore) {
+                  // Chrome/Edge
+                  const style = document.createElement('style');
+                  style.textContent = \`
+                    @page {
+                      margin: 15mm;
+                      size: A4;
+                      @top-left { content: ""; }
+                      @top-center { content: ""; }
+                      @top-right { content: ""; }
+                      @bottom-left { content: ""; }
+                      @bottom-center { content: ""; }
+                      @bottom-right { content: ""; }
+                    }
+                  \`;
+                  document.head.appendChild(style);
+                }
+              });
+            </script>
           </head>
           <body>
             ${element.innerHTML}
-            <div class="footer">
-              <p>Orçamento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
-              <p>Este orçamento é válido por 30 dias a partir da data de emissão.</p>
-            </div>
           </body>
           </html>
         `
 
+        // Escrever o conteúdo na janela
         printWindow.document.write(printHTML)
         printWindow.document.close()
 
-        // Aguardar carregamento e mostrar instruções
+        // Aguardar carregamento e abrir impressão automaticamente
         printWindow.onload = () => {
           setTimeout(() => {
+            // Configurar impressão sem cabeçalho e rodapé
+            const printWindowDocument = printWindow.document
+            const style = printWindowDocument.createElement('style')
+            style.textContent = `
+              @media print {
+                @page {
+                  margin: 15mm;
+                  size: A4;
+                  /* Remove cabeçalho e rodapé da impressão */
+                  @top-left { content: ""; }
+                  @top-center { content: ""; }
+                  @top-right { content: ""; }
+                  @bottom-left { content: ""; }
+                  @bottom-center { content: ""; }
+                  @bottom-right { content: ""; }
+                }
+              }
+            `
+            printWindowDocument.head.appendChild(style)
+            
             // Abrir automaticamente a janela de impressão
             printWindow.print()
 
             // Mostrar instruções após um delay
             setTimeout(() => {
-              alert('Para salvar como PDF:\n\n1. Na janela de impressão que abriu\n2. Escolha "Salvar como PDF" como destino\n3. Clique em "Salvar"\n\nSe a janela não abriu, verifique se popups estão permitidos.')
+              alert('Para salvar como PDF sem cabeçalho e rodapé:\n\n1. Na janela de impressão que abriu\n2. Clique em "Mais configurações"\n3. Desmarque "Cabeçalhos e rodapés"\n4. Escolha "Salvar como PDF" como destino\n5. Clique em "Salvar"\n\nSe a janela não abriu, verifique se popups estão permitidos.')
             }, 500)
-          }, 1000)
+          }, 500)
         }
       }
 
@@ -603,14 +715,20 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
         <div className="orcamento-header border-2 border-gray-400 mb-4 print:mb-3">
           <div className="p-4">
             <div className="text-center">
-              <h1 className="text-lg font-bold text-gray-900 print:text-black mb-2">BV BoaVentura</h1>
+              <h1 className="text-lg font-bold text-gray-900 print:text-black mb-2">
+                {empresaConfig?.nome_empresa || 'BV BoaVentura'}
+              </h1>
               <div className="text-xs text-gray-700 print:text-black space-y-1">
-                <p><strong>CNPJ:</strong> 33.330.323/0001-00 | <strong>IE:</strong> Não informado</p>
-                <p>Rua Antonio Stupello, 676 - São Joaquim da Barra</p>
-                <p>Centro - São Paulo - SP</p>
-                <p><strong>Contato:</strong> (16) 3818-3873</p>
-                <p><strong>Email:</strong> contato@bvcaldeiraria.com.br</p>
-                <p>@bvcaldeiraria</p>
+                <p>
+                  <strong>CNPJ:</strong> {empresaConfig?.cnpj || '33.330.323/0001-00'} | <strong>IE:</strong> {empresaConfig?.inscricao_estadual || '642074080110'}
+                </p>
+                <p>{empresaConfig?.endereco || 'Rua Antonio Stupello, 676 - São Joaquim da Barra - SP, Centro'}</p>
+                <p>
+                  <strong>Contato:</strong> {empresaConfig?.telefone_1 || '16 3712-4100'}
+                  {empresaConfig?.telefone_2 && ` e ${empresaConfig.telefone_2}`}
+                </p>
+                <p><strong>Email:</strong> {empresaConfig?.email || 'contato@bvcaldeiraria.com.br'}</p>
+                {empresaConfig?.instagram && <p>{empresaConfig.instagram}</p>}
               </div>
             </div>
           </div>
@@ -620,7 +738,7 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
         <div className="grid grid-cols-3 gap-4 mb-4 print:mb-3">
           <div className="border border-gray-400 p-2 text-center">
             <div className="text-xs text-gray-600 print:text-black">Orçamento nº:</div>
-            <div className="font-bold text-sm text-gray-900 print:text-black">#{pedido?.id.slice(-8)}</div>
+            <div className="font-bold text-sm text-gray-900 print:text-black">{numeroOrcamento || `#${pedido?.id.slice(-8)}`}</div>
           </div>
           <div className="border border-gray-400 p-2 text-center">
             <div className="text-xs text-gray-600 print:text-black">Emitido em:</div>
@@ -643,37 +761,24 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
             <table className="w-full border-collapse border border-gray-400 text-xs">
               <tbody>
                 <tr>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100 w-20">CLIENTE</td>
+                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100 w-32">Cliente/Empresa</td>
                   <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.nome_cliente_empresa}</td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100 w-20">TELEFONE</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.telefone_whatsapp}</td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100 w-20">EMAIL</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.email || 'Não informado'}</td>
                 </tr>
                 <tr>
                   <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">CNPJ/CPF</td>
                   <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.cnpj_cpf || 'Não informado'}</td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">RG</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">Não informado</td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100" colSpan={2}></td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">ENDEREÇO</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black" colSpan={2}>
-                    {pedido.cliente.endereco || 'Não informado'}
-                  </td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">BAIRRO</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black" colSpan={2}>
-                    {pedido.cliente.bairro || 'Não informado'}
-                  </td>
+                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">Telefone/WhatsApp</td>
+                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.telefone_whatsapp}</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">CIDADE</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.cidade}</td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">ESTADO</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.estado_uf}</td>
-                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">CEP</td>
-                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.cep || 'Não informado'}</td>
+                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">E-mail</td>
+                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.email || 'Não informado'}</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-400 p-2 font-bold bg-gray-100 print:bg-gray-100">Responsável</td>
+                  <td className="border border-gray-400 p-2 text-gray-900 print:text-black">{pedido.cliente.nome_responsavel || 'Não informado'}</td>
                 </tr>
               </tbody>
             </table>
@@ -779,6 +884,18 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
                   R$ {valorFinal.toFixed(2)}
                 </span>
               </div>
+
+              {/* Condição de Pagamento */}
+              <div className="mt-4 pt-3 border-t border-gray-300">
+                <div className="flex items-start">
+                  <span className="text-sm font-bold text-gray-900 print:text-black mr-2">
+                    Condição de pagamento:
+                  </span>
+                  <span className="text-sm text-gray-900 print:text-black">
+                    {pedido?.condicao_pagamento || 'A definir'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -797,16 +914,7 @@ export default function ExportarOrcamentoPage({ params }: { params: Promise<{ id
           </div>
         </div>
 
-        {/* Rodapé com assinatura do cliente */}
-        <div className="flex justify-end mt-8 print:mt-6">
-          <div className="text-center w-64">
-            <div className="border-t border-gray-400 pt-2 mt-16">
-              <div className="text-xs text-gray-900 print:text-black font-bold">
-                {pedido?.cliente?.nome_responsavel || 'Cliente'}
-              </div>
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
   )

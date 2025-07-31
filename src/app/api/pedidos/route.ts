@@ -46,12 +46,13 @@ export const GET = withAuth(async (req: NextRequest) => {
     // Calcula o offset para paginação
     const offset = (page - 1) * pageSize;
     
-    // Query com join para incluir dados do produto
+    // Query com join para incluir dados do produto e cliente
     let query = supabaseAdmin
       .from('pedidos')
       .select(`
         *,
-        produto:produtos(id, nome)
+        produto:produtos(id, nome),
+        cliente:clientes(id, nome_cliente_empresa)
       `, { count: 'exact' });
     
     // Aplica filtros se fornecidos
@@ -258,7 +259,8 @@ export const POST = withAuth(async (req: NextRequest) => {
       observacoes: body.observacoes || null,
       tem_frete: temFrete,
       valor_frete: valorFrete,
-      user_id: user.id
+      user_id: user.id,
+      numero_orcamento: body.numero_orcamento || null
     };
     
     // Insere o pedido no banco de dados

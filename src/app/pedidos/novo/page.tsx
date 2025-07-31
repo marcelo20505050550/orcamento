@@ -23,7 +23,8 @@ export default function NovoPedidoPage() {
 
   const [formData, setFormData] = useState({
     cliente_id: '',
-    quantidade: '1'
+    quantidade: '1',
+    numero_manual: ''
   })
 
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function NovoPedidoPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
 
-    if (name === 'quantidade') {
+    if (name === 'quantidade' || name === 'numero_manual') {
       // Somente aceita números inteiros
       const formattedValue = value.replace(/\D/g, '')
       setFormData({
@@ -186,12 +187,31 @@ export default function NovoPedidoPage() {
         throw new Error('A quantidade deve ser maior que zero')
       }
 
+      if (!formData.numero_manual || parseInt(formData.numero_manual) <= 0) {
+        throw new Error('O número do orçamento é obrigatório e deve ser maior que zero')
+      }
+
+      // Gerar número do orçamento formatado
+      let numeroOrcamento = null
+      try {
+        const numeroResponse = await api.post('/api/orcamento/gerar-numero', {
+          numero_manual: parseInt(formData.numero_manual)
+        })
+        if (numeroResponse.error) {
+          throw new Error(numeroResponse.error)
+        }
+        numeroOrcamento = numeroResponse.numero
+      } catch (err) {
+        throw new Error('Erro ao gerar número do orçamento')
+      }
+
       // Formata os dados para envio
       const pedidoData = {
         cliente_id: formData.cliente_id,
         quantidade: parseInt(formData.quantidade),
         observacoes: observacoes.join('\n') || null,
-        produtos_selecionados: produtosSelecionados
+        produtos_selecionados: produtosSelecionados,
+        numero_orcamento: numeroOrcamento
       }
 
       // Envia os dados para a API usando o utilitário api
@@ -334,6 +354,36 @@ export default function NovoPedidoPage() {
                   value={formData.quantidade}
                   onChange={handleChange}
                 />
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="numero_manual" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Número do Orçamento <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1">
+                <div className="flex items-center">
+                  <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm rounded-l-md">
+                    BV-
+                  </span>
+                  <input
+                    type="text"
+                    name="numero_manual"
+                    id="numero_manual"
+                    required
+                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    placeholder="00001"
+                    value={formData.numero_manual}
+                    onChange={handleChange}
+                    maxLength={5}
+                  />
+                  <span className="inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm rounded-r-md">
+                    -{new Date().getFullYear().toString().slice(-2)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Digite apenas o número sequencial (ex: 1, 2, 3...)
+                </p>
               </div>
             </div>
 
@@ -542,12 +592,6 @@ export default function NovoPedidoPage() {
                     {clienteSelecionado.nome_cliente_empresa}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">Responsável</p>
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    {clienteSelecionado.nome_responsavel}
-                  </p>
-                </div>
                 {clienteSelecionado.cnpj_cpf && (
                   <div>
                     <p className="text-xs text-blue-700 dark:text-blue-300">CNPJ/CPF</p>
@@ -571,43 +615,11 @@ export default function NovoPedidoPage() {
                   </div>
                 )}
                 <div>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">Localização</p>
-                  <p className="text-sm text-blue-900 dark:text-blue-100">
-                    {clienteSelecionado.cidade}, {clienteSelecionado.estado_uf}
+                  <p className="text-xs text-blue-700 dark:text-blue-300">Responsável</p>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    {clienteSelecionado.nome_responsavel}
                   </p>
                 </div>
-                {clienteSelecionado.tipo_interesse && (
-                  <div>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">Tipo de Interesse</p>
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
-                      {clienteSelecionado.tipo_interesse}
-                    </p>
-                  </div>
-                )}
-                {clienteSelecionado.origem_contato && (
-                  <div>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">Origem do Contato</p>
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
-                      {clienteSelecionado.origem_contato}
-                    </p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">Status do Orçamento</p>
-                  <p className="text-sm text-blue-900 dark:text-blue-100">
-                    {clienteSelecionado.status_orcamento === 'aberto' ? 'Aberto' :
-                      clienteSelecionado.status_orcamento === 'pedido_confirmado' ? 'Pedido Confirmado' :
-                        'Cancelado'}
-                  </p>
-                </div>
-                {clienteSelecionado.descricao_demanda && (
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <p className="text-xs text-blue-700 dark:text-blue-300">Descrição da Demanda</p>
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
-                      {clienteSelecionado.descricao_demanda}
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           )}

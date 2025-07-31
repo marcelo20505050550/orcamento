@@ -2,6 +2,13 @@
   @page {
     margin: 15mm;
     size: A4;
+    /* Remove cabeçalho e rodapé da impressão */
+    @top-left { content: ""; }
+    @top-center { content: ""; }
+    @top-right { content: ""; }
+    @bottom-left { content: ""; }
+    @bottom-center { content: ""; }
+    @bottom-right { content: ""; }
   }
 
   body {

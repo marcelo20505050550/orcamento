@@ -202,6 +202,8 @@ export const PUT = withAuth(async (
       valor_frete: number;
       margem_lucro_percentual: number;
       impostos_percentual: number;
+      condicao_pagamento: string;
+      numero_orcamento: string;
     }> = {};
     
     // Atualização de status (se fornecido)
@@ -269,6 +271,16 @@ export const PUT = withAuth(async (
         );
       }
       updateData.impostos_percentual = body.impostos_percentual;
+    }
+    
+    // Atualização de condição de pagamento (se fornecido)
+    if (body.condicao_pagamento !== undefined) {
+      updateData.condicao_pagamento = body.condicao_pagamento;
+    }
+    
+    // Atualização de número do orçamento (se fornecido)
+    if (body.numero_orcamento !== undefined) {
+      updateData.numero_orcamento = body.numero_orcamento;
     }
     
     // Verifica se há dados para atualizar

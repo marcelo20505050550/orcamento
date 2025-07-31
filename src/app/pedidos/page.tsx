@@ -10,9 +10,14 @@ type Pedido = {
     id: string
     nome: string
   }
+  cliente?: {
+    id: string
+    nome_cliente_empresa: string
+  }
   quantidade: number
   status: 'pendente' | 'em_producao' | 'finalizado' | 'cancelado'
   observacoes: string
+  numero_orcamento?: string
   created_at: string
 }
 
@@ -20,10 +25,10 @@ export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+
   const [pedidoParaExcluir, setPedidoParaExcluir] = useState<Pedido | null>(null)
   const [excluindo, setExcluindo] = useState(false)
-  const [mensagemFeedback, setMensagemFeedback] = useState<{tipo: 'sucesso' | 'erro', texto: string} | null>(null)
+  const [mensagemFeedback, setMensagemFeedback] = useState<{ tipo: 'sucesso' | 'erro', texto: string } | null>(null)
 
   useEffect(() => {
     const fetchPedidos = async () => {
@@ -42,10 +47,7 @@ export default function PedidosPage() {
     fetchPedidos()
   }, [])
 
-  // Filtrar pedidos com base no status
-  const filteredPedidos = statusFilter
-    ? pedidos.filter(pedido => pedido.status === statusFilter)
-    : pedidos
+
 
   // Função para abrir o modal de confirmação de exclusão
   const confirmarExclusao = (pedido: Pedido) => {
@@ -75,12 +77,12 @@ export default function PedidosPage() {
         texto: 'Apenas pedidos com status "Pendente" ou "Cancelado" podem ser excluídos.'
       })
       setPedidoParaExcluir(null)
-      
+
       // Limpa a mensagem após 5 segundos
       setTimeout(() => {
         setMensagemFeedback(null)
       }, 5000)
-      
+
       return
     }
 
@@ -89,29 +91,29 @@ export default function PedidosPage() {
     try {
       console.log('Enviando requisição DELETE para', `/api/pedidos/${pedidoParaExcluir.id}`)
       await api.delete(`/api/pedidos/${pedidoParaExcluir.id}`)
-      
+
       // Atualiza a lista de pedidos removendo o pedido excluído
       setPedidos(pedidos.filter(p => p.id !== pedidoParaExcluir.id))
-      
+
       // Mostra mensagem de sucesso
       setMensagemFeedback({
         tipo: 'sucesso',
         texto: `Pedido #${pedidoParaExcluir.id.substring(0, 8)} excluído com sucesso!`
       })
-      
+
       // Limpa a mensagem após 5 segundos
       setTimeout(() => {
         setMensagemFeedback(null)
       }, 5000)
     } catch (err) {
       console.error('Erro ao excluir pedido:', err)
-      
+
       // Mostra mensagem de erro
       setMensagemFeedback({
         tipo: 'erro',
         texto: err instanceof Error ? err.message : 'Erro ao excluir pedido'
       })
-      
+
       // Limpa a mensagem após 5 segundos
       setTimeout(() => {
         setMensagemFeedback(null)
@@ -122,36 +124,7 @@ export default function PedidosPage() {
     }
   }
 
-  // Helper para informações de status
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case 'pendente':
-        return {
-          text: 'Pendente',
-          className: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200',
-        }
-      case 'em_producao':
-        return {
-          text: 'Em Produção',
-          className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200',
-        }
-      case 'finalizado':
-        return {
-          text: 'Finalizado',
-          className: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200',
-        }
-      case 'cancelado':
-        return {
-          text: 'Cancelado',
-          className: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200',
-        }
-      default:
-        return {
-          text: 'Desconhecido',
-          className: 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-200',
-        }
-    }
-  }
+
 
   // Helper para formatar datas
   const formatDate = (dateString: string) => {
@@ -177,7 +150,7 @@ export default function PedidosPage() {
         <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-md">
           <h2 className="text-red-800 dark:text-red-200 font-medium">Erro</h2>
           <p className="text-red-700 dark:text-red-300 mt-1">{error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="mt-3 text-sm text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
           >
@@ -192,11 +165,10 @@ export default function PedidosPage() {
     <div className="space-y-6">
       {/* Feedback de sucesso ou erro */}
       {mensagemFeedback && (
-        <div className={`p-4 rounded-md ${
-          mensagemFeedback.tipo === 'sucesso' 
-            ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200' 
-            : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
-        }`}>
+        <div className={`p-4 rounded-md ${mensagemFeedback.tipo === 'sucesso'
+          ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200'
+          : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+          }`}>
           <div className="flex">
             <div className="flex-shrink-0">
               {mensagemFeedback.tipo === 'sucesso' ? (
@@ -216,11 +188,10 @@ export default function PedidosPage() {
               <div className="-mx-1.5 -my-1.5">
                 <button
                   onClick={() => setMensagemFeedback(null)}
-                  className={`inline-flex rounded-md p-1.5 ${
-                    mensagemFeedback.tipo === 'sucesso'
-                      ? 'text-green-500 hover:bg-green-100 dark:hover:bg-green-800'
-                      : 'text-red-500 hover:bg-red-100 dark:hover:bg-red-800'
-                  }`}
+                  className={`inline-flex rounded-md p-1.5 ${mensagemFeedback.tipo === 'sucesso'
+                    ? 'text-green-500 hover:bg-green-100 dark:hover:bg-green-800'
+                    : 'text-red-500 hover:bg-red-100 dark:hover:bg-red-800'
+                    }`}
                 >
                   <span className="sr-only">Fechar</span>
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -246,10 +217,10 @@ export default function PedidosPage() {
           href="/pedidos/novo"
           className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-5 w-5 mr-2" 
-            viewBox="0 0 20 20" 
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 mr-2"
+            viewBox="0 0 20 20"
             fill="currentColor"
           >
             <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -259,77 +230,20 @@ export default function PedidosPage() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setStatusFilter(null)}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
-                statusFilter === null
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Todos
-            </button>
-            <button
-              onClick={() => setStatusFilter('pendente')}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
-                statusFilter === 'pendente'
-                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-200'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Pendentes
-            </button>
-            <button
-              onClick={() => setStatusFilter('em_producao')}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
-                statusFilter === 'em_producao'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Em Produção
-            </button>
-            <button
-              onClick={() => setStatusFilter('finalizado')}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
-                statusFilter === 'finalizado'
-                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-200'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Finalizados
-            </button>
-            <button
-              onClick={() => setStatusFilter('cancelado')}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
-                statusFilter === 'cancelado'
-                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-200'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Cancelados
-            </button>
-          </div>
-        </div>
 
-        {filteredPedidos.length > 0 ? (
+        {pedidos.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Código
+                    Orçamento
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Produto
+                    Cliente
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Quantidade
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Data
@@ -340,25 +254,19 @@ export default function PedidosPage() {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredPedidos.map((pedido) => {
-                  const statusInfo = getStatusInfo(pedido.status)
+                {pedidos.map((pedido) => {
                   const podeExcluir = pedido.status === 'pendente' || pedido.status === 'cancelado'
-                  
+
                   return (
                     <tr key={pedido.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {pedido.id.substring(0, 8)}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {pedido.numero_orcamento || 'Não definido'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        {pedido.produto.nome}
+                        {pedido.cliente?.nome_cliente_empresa || 'Cliente não informado'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                         {pedido.quantidade}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.className}`}>
-                          {statusInfo.text}
-                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                         {formatDate(pedido.created_at)}
@@ -369,12 +277,6 @@ export default function PedidosPage() {
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4"
                         >
                           Detalhes
-                        </Link>
-                        <Link
-                          href={`/orcamentos?pedido=${pedido.id}`}
-                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 mr-4"
-                        >
-                          Orçamento
                         </Link>
                         {podeExcluir && (
                           <button
@@ -412,28 +314,24 @@ export default function PedidosPage() {
               Nenhum pedido encontrado
             </h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {statusFilter
-                ? 'Não há pedidos com este status. Tente outro filtro.'
-                : 'Comece criando seu primeiro pedido.'}
+              Comece criando seu primeiro pedido.
             </p>
-            {!statusFilter && (
-              <div className="mt-6">
-                <Link
-                  href="/pedidos/novo"
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            <div className="mt-6">
+              <Link
+                href="/pedidos/novo"
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 mr-2"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    className="h-5 w-5 mr-2" 
-                    viewBox="0 0 20 20" 
-                    fill="currentColor"
-                  >
-                    <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  Novo Pedido
-                </Link>
-              </div>
-            )}
+                  <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                Novo Pedido
+              </Link>
+            </div>
           </div>
         )}
       </div>
@@ -444,7 +342,7 @@ export default function PedidosPage() {
           {/* Backdrop */}
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             {/* Background overlay */}
-            <div 
+            <div
               className="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
               onClick={cancelarExclusao}
               aria-hidden="true"
@@ -468,7 +366,7 @@ export default function PedidosPage() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Tem certeza que deseja excluir o pedido #{pedidoParaExcluir.id.substring(0, 8)} de {pedidoParaExcluir.produto.nome}? Esta ação não pode ser desfeita.
+                        Tem certeza que deseja excluir o pedido #{pedidoParaExcluir.id.substring(0, 8)} do cliente {pedidoParaExcluir.cliente?.nome_cliente_empresa || 'não informado'}? Esta ação não pode ser desfeita.
                       </p>
                     </div>
                   </div>
@@ -477,11 +375,10 @@ export default function PedidosPage() {
               <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
-                  className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm ${
-                    excluindo 
-                      ? 'bg-red-400 cursor-not-allowed' 
-                      : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
-                  }`}
+                  className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm ${excluindo
+                    ? 'bg-red-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+                    }`}
                   onClick={excluirPedido}
                   disabled={excluindo}
                 >
